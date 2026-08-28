@@ -76,7 +76,13 @@ jobs:
       # `npm ci` (better-sqlite3 is a real build dep — scripts/buildBaseDb.mjs
       # uses it). Upgrade npm so the compile works on the current image
       # rather than pinning to the soon-retired windows-2022.
-      - run: npm install -g npm@latest
+      #
+      # Pinned to the 11.x line, NOT @latest: npm 12 dropped Node 20
+      # (engines: ^22.22.2 || ^24.15.0 || >=26.0.0), so `npm@latest` began
+      # failing this job with EBADENGINE before `npm ci` ever ran. 11.x
+      # still satisfies the node-gyp >=12.1.0 requirement above (11.19.1
+      # bundles node-gyp 12.4.0) while supporting Node ^20.17.0.
+      - run: npm install -g npm@^11.6.3
       - run: npm ci
       - name: Build plugin
         shell: pwsh
