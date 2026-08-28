@@ -81,6 +81,77 @@ const logger = {
   error: msg => console.log(`[ERROR] ${msg}`),
 };
 
+// DEVICE-ONLY. Chauvet enforces per-plugin sdcard permissions. The
+// enforcement point is android.os.PluginSecurityManager.checkFileAccess,
+// which throws SecurityException from INSIDE RTNFileModule.listFiles —
+// and that method has no try/catch and never rejects its promise, so the
+// throw escapes the TurboModule synchronously on the native-modules
+// thread, lands in PluginJSExceptionHandler, and the host closes the
+// plugin. A JS try/catch around the call cannot catch it (there is no
+// promise to reject). The only safe order is: obtain the permission
+// FIRST, then touch the path.
+//
+// sn-plugin-lib 0.1.65 documents FILE:WRITE / FILE:DELETE / INTERNET but
+// NOT a READ name, while the denial we see is specifically for READ — so
+// we probe WRITE (documented, certainly valid) before READ (speculative).
+// The ordering matters: if the speculative name is rejected by the host,
+// the WRITE result is already in logcat.
+// Chauvet enforces per-plugin file permissions. requestPermission on an
+// UNDECLARED name throws "This permission has not been declared."
+// (docs call it error 1500). Declaration lives in PluginConfig.json under
+// the key `uses-permissions` — kebab-case, mirroring Android's
+// <uses-permission>. Device-verified that `usePermissions` and
+// `usesPermissions` both parse to null and are silently ignored.
+// Ref: docs.supernote.com/en/plugin-base/permission
+//
+// FILE:READ is absent from sn-plugin-lib 0.1.65's JSDoc (which lists only
+// WRITE / DELETE / INTERNET) but is a real, documented permission and the
+// one that matters most here: without it PluginFileAPI.getPageSize fails
+// with "File read permission has not been requested", which kills the
+// lookup pipeline so no definition ever appears.
+const FILE_WRITE_PERM = 'plugin.permission.FILE:WRITE';
+const FILE_DELETE_PERM = 'plugin.permission.FILE:DELETE';
+const FILE_READ_PERM = 'plugin.permission.FILE:READ';
+
+// 0 = not granted, 1 = granted (hasPermission); requestPermission
+// returns 0 = deny, 1 = while-using, 2 = always. -1 is our own marker
+// for "the call itself failed".
+const probePerm = async (verb, name) => {
+  try {
+    const v =
+      verb === 'has'
+        ? await PluginManager.hasPermission(name)
+        : await PluginManager.requestPermission(name);
+    logger.log(`[perm] ${verb}Permission(${name}) -> ${v}`);
+    return typeof v === 'number' ? v : -1;
+  } catch (e) {
+    logger.log(`[perm] ${verb}Permission(${name}) threw: ${e.message}`);
+    return -1;
+  }
+};
+
+// Returns true when we believe the sdcard read will be allowed. Callers
+// MUST honour a false — proceeding anyway kills the plugin outright.
+const ensureSdcardPermission = async () => {
+  // READ first: it is what gates getPageSize on the lookup path, so a
+  // failure here is the difference between a working popup and none.
+  // Each name must ALSO appear in PluginConfig.json's `usesPermissions`
+  // or the request throws "This permission has not been declared."
+  const grant = async name => {
+    const had = await probePerm('has', name);
+    return had > 0 ? had : await probePerm('request', name);
+  };
+  const read = await grant(FILE_READ_PERM);
+  const write = await grant(FILE_WRITE_PERM);
+  const del = await grant(FILE_DELETE_PERM);
+  const ok = read > 0;
+  logger.log(
+    `[perm] sdcard access granted=${ok} ` +
+      `(read=${read} write=${write} delete=${del})`,
+  );
+  return ok;
+};
+
 // All DBs live in the plugin host's extracted dir, addressed by
 // {name, location} — NOT a hardcoded absolute path. The native side
 // resolves getFilesDir() + location + name (SQLitePlugin.java:392-395),
@@ -202,7 +273,19 @@ const bootstrapPorts = {
     slugDbExists: filename =>
       getFileSize(resolveSlugDbPath(filename)).then(size => size > 0),
   },
-  discover: () => discoverUserDicts({fileUtils: FileUtils, logger}),
+  // Gated on the sdcard permission: discoverUserDicts' own try/catch
+  // around listFiles is useless here (native throw, not a rejection), so
+  // the guard has to sit BEFORE the call. Denied -> zero import jobs,
+  // exactly like an empty root; base.db still works and the plugin lives.
+  discover: async () => {
+    if (!(await ensureSdcardPermission())) {
+      logger.warn(
+        '[perm] sdcard read not granted — skipping user-dict discovery',
+      );
+      return [];
+    }
+    return discoverUserDicts({fileUtils: FileUtils, logger});
+  },
   // F7: the file-deletion seam deleteImportedDict drives — unlink the slug
   // DB at PLUGIN_LOCATION/<filename> (same mapping resolveSlugDbPath uses on
   // the import path) and the leftover on-disk source set. All best-effort;

@@ -6,5 +6,10 @@
   "versionCode": "10305",
   "pluginID": "sndictdfltbasev1",
   "pluginKey": "SnDict",
-  "jsMainPath": "index"
+  "jsMainPath": "index",
+  "uses-permissions": [
+    "plugin.permission.FILE:READ",
+    "plugin.permission.FILE:WRITE",
+    "plugin.permission.FILE:DELETE"
+  ]
 }
