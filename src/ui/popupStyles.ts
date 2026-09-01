@@ -70,17 +70,19 @@ export const popupStyles = StyleSheet.create({
   body: {
     marginTop: 12,
     marginBottom: 16,
-    // #37 — claim the leftover height between the header and the footer
-    // so a maximized card scrolls its body instead of hugging the top
-    // with the footer floating mid-card.
-    // flexGrow/flexShrink, NOT `flex: 1`: `flex: 1` also sets
-    // flexBasis:0%, which inside the Normal card (auto height, clamped
-    // by maxHeight:520) would measure this ScrollView as 0 tall and
-    // collapse the body entirely. Leaving flexBasis at its 'auto'
-    // default keeps the content-sized measurement in the Normal card
-    // and still fills/shrinks in the Maximized one. flexShrink also
-    // fixes a latent bug in BOTH sizes: RN defaults flexShrink to 0, so
-    // an over-long body currently pushes the footer out of the card.
+    // #37 — this is a ScrollView, and RN's ScrollView already composes
+    // baseVertical = {flexGrow:1, flexShrink:1, overflow:'scroll'} UNDER
+    // props.style (ScrollView.js:1734,1842). These two lines restate that
+    // default so it is visible at the call site and so the guard test has
+    // something to pin; they change nothing on their own.
+    //
+    // What DOES matter: never write `flex: 1` here. props.style composes OVER
+    // baseVertical, so `flex: 1` would replace all three (flexBasis:0%), and
+    // inside the Normal card — auto height under maxHeight:520, so Yoga takes
+    // the FitContent path and forces remainingFreeSpace to 0 — a basis-0 child
+    // grows by nothing and the definition renders at height 0. Verified in
+    // Yoga CalculateLayout.cpp:1518-1541. The guard test pins `flex` and
+    // `flexBasis` undefined.
     flexGrow: 1,
     flexShrink: 1,
   },
@@ -371,8 +373,9 @@ export const popupStyles = StyleSheet.create({
   // Scrollable settings body, below the fixed title + Back header.
   settingsBody: {
     marginTop: 4,
-    // #37 — same reason as `body`; see the note there for why this is
-    // flexGrow/flexShrink and not `flex: 1`.
+    // #37 — also a ScrollView, so as with `body` these restate RN's own
+    // baseVertical default and are inert. See the note there for the trap
+    // they mark: `flex: 1` here would collapse the panel body to height 0.
     flexGrow: 1,
     flexShrink: 1,
   },

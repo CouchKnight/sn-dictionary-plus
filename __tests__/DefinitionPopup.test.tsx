@@ -3052,6 +3052,20 @@ describe('DefinitionPopup — granted-region probe', () => {
     ]);
   });
 
+  test('hide -> show does not re-log the same region (the ref outlives the branch)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    // The hidden state renders no backdrop, so nothing can leak a 0x0
+    // line; on re-show the backdrop lays out again at the same size, but
+    // only the BRANCH remounted — the component, and so the latch, did
+    // not.
+    act(() => hideDefinition());
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    expect(regionLines()).toHaveLength(1);
+  });
+
   test('toggling maximize emits NO second [region] line', () => {
     const tree = renderPopup();
     act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
@@ -3180,21 +3194,43 @@ describe('DefinitionPopup — maximize toggle', () => {
     );
   });
 
-  test('the body ScrollView flexes in BOTH sizes, and is not flex: 1', () => {
+  test('the body ScrollView never carries a zero flex basis, in EITHER size', () => {
     const tree = renderPopup();
     act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
-    // `flex: 1` would also set flexBasis:0%, which collapses the body to
-    // zero height inside the auto-height Normal card. Pin the shorthand
-    // OUT so a refactor cannot silently reintroduce that.
+    // THE load-bearing assertion in this suite. props.style composes OVER
+    // ScrollView's own baseVertical, so anything that lands a zero basis
+    // here — `flex: 1`, `flex: '1 1 0%'`, or a bare flexBasis: 0 / '0%' —
+    // makes the Normal card render the definition at height 0. Pinning
+    // flexGrow/flexShrink alone would NOT catch that: it is the absence of
+    // a basis that matters, so assert both shorthand and longhand out.
     expect(findBodyStyle(tree)).toEqual(
       expect.objectContaining({flexGrow: 1, flexShrink: 1}),
     );
     expect(findBodyStyle(tree).flex).toBeUndefined();
+    expect(findBodyStyle(tree).flexBasis).toBeUndefined();
     maximize(tree);
     expect(findBodyStyle(tree)).toEqual(
       expect.objectContaining({flexGrow: 1, flexShrink: 1}),
     );
     expect(findBodyStyle(tree).flex).toBeUndefined();
+    expect(findBodyStyle(tree).flexBasis).toBeUndefined();
+  });
+
+  test('the settings body carries the same no-zero-basis guard', async () => {
+    // SettingsPanel's own ScrollView is the second place the trap exists,
+    // and it had no guard at all. Same rule, same reason.
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    await act(async () => pressLabel(tree, 'Settings'));
+    await flush();
+    const body = findBodyStyle(tree);
+    // marginTop:4 identifies this as settingsBody rather than a nested
+    // ScrollView further down the panel.
+    expect(body).toEqual(
+      expect.objectContaining({marginTop: 4, flexGrow: 1, flexShrink: 1}),
+    );
+    expect(body.flex).toBeUndefined();
+    expect(body.flexBasis).toBeUndefined();
   });
 
   test('the recognizing card carries the maximized size (no frame snap)', () => {
@@ -3283,5 +3319,85 @@ describe('DefinitionPopup — maximize toggle', () => {
     maximize(tree);
     expect(findByLabel(tree, 'Definition')).toHaveLength(1);
     expect(findByLabel(tree, 'Definition')[0].props.value).toBe('my def');
+  });
+
+  test('saving a new definition still works while maximized', async () => {
+    // The form rendering large is not the same as it SUBMITTING while
+    // large — the toggle must not disturb the save path.
+    const addUserEntry = jest.fn(async () => undefined);
+    const relookup = jest.fn(async () => undefined);
+    setPopupActions(addActions(addUserEntry, relookup));
+    const tree = renderPopup();
+    act(() => showDefinition(notFound('photon')));
+    maximize(tree);
+    act(() => pressLabel(tree, 'Add definition'));
+    act(() =>
+      findByLabel(tree, 'Definition')[0].props.onChangeText('a light quantum'),
+    );
+    await act(async () => {
+      findByLabel(tree, 'Save')[0].props.onPress();
+      await Promise.resolve();
+    });
+    expect(addUserEntry).toHaveBeenCalledWith('photon', 'a light quantum');
+    expect(relookup).toHaveBeenCalledWith('photon');
+  });
+
+  test('an OCR edit cancelled by a new result stays maximized, in display mode', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(notFound('helo'), 'OCR: helo', true));
+    maximize(tree);
+    enterEdit(tree);
+    expect(findByLabel(tree, 'OCR')).toHaveLength(1);
+    // A new result arrives (the relookup landed) — editing resets to
+    // display mode, but the window size is NOT part of that reset.
+    act(() =>
+      showDefinition(found('WordNet', 'hello', 'a greeting'), 'OCR: hello', true),
+    );
+    expect(findByLabel(tree, 'OCR')).toHaveLength(0);
+    expect(findByLabel(tree, 'Edit recognized text')).toHaveLength(1);
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+    expect(findCardStyle(tree)).toEqual(expect.objectContaining({flex: 1}));
+  });
+});
+
+// --- #32 pen-dismiss x #37 maximize -------------------------------------
+//
+// The two features were tested in complete isolation. The dismiss layer is
+// StyleSheet.absoluteFill — position:absolute, so it is out of flow and the
+// card resizing cannot move or reorder it, and Yoga positions an absolute
+// child against the parent's PADDING box, so the 24dp ring left around a
+// maximized card is inside the layer, not outside it. That is the claim
+// these two pin.
+
+describe('DefinitionPopup — pen-dismiss while maximized (#32 x #37)', () => {
+  test('a stylus tap outside still closes when maximized', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    expect(hasDismissLayer(tree)).toBe(true);
+    act(() => fireToolDown(tree, 'stylus'));
+    act(() => pressBackdrop(tree));
+    expect(collectText(tree)).toBe('');
+    expect(closePluginView).toHaveBeenCalledTimes(1);
+  });
+
+  test('a stylus tap outside the MAXIMIZED settings panel goes Back, not close', async () => {
+    setPopupActions(
+      fakeActions(async () => ({lang: 'en', omw: {synonyms: [], antonyms: []}})),
+    );
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    await act(async () => pressLabel(tree, 'Settings'));
+    await flush();
+    expect(hasDismissLayer(tree)).toBe(true);
+    act(() => fireToolDown(tree, 'stylus'));
+    await act(async () => pressBackdrop(tree));
+    await flush();
+    // Non-destructive Back, exactly as at the Normal size: the overlay
+    // never closed, and the restored result is still maximized.
+    expect(currentKind()).toBe('result');
+    expect(closePluginView).not.toHaveBeenCalled();
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
   });
 });

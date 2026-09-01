@@ -375,7 +375,7 @@ const STRINGS: Record<string, Partial<Record<StringId, string>>> = {
     'popup.copy': 'คัดลอก',
     'popup.copied': 'คัดลอกแล้ว',
     'popup.copyFailed': 'คัดลอกไม่ได้',
-    'popup.maximize': 'ขยายหน้าต่างเต็มจอ',
+    'popup.maximize': 'ขยายหน้าต่าง',
     'popup.restore': 'คืนขนาดหน้าต่าง',
     'settings.open': 'การตั้งค่า',
     'settings.title': 'การตั้งค่า',
