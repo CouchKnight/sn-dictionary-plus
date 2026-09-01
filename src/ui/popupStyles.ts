@@ -30,6 +30,23 @@ export const popupStyles = StyleSheet.create({
     borderColor: '#000000',
     padding: 20,
   },
+  // #37 — the Maximized card geometry. Layered OVER `card` (never
+  // instead of it) so border/radius/padding/background stay defined once.
+  // width:'100%' overrides card's fixed 640 and flex:1 claims the
+  // backdrop's full remaining height. maxHeight:'100%' is LOAD-BEARING:
+  // without it, card's maxHeight:520 clamps the flexed height and the
+  // card grows no taller than today.
+  // NO pixel dimensions — the card fills whatever region the firmware
+  // grants, so Nomad (~1404x1872) and Manta (~1920x2560) both work with
+  // no device-density lookup and no Dimensions mock in the test suite.
+  // The backdrop keeps its padding:24, so a 24dp frame of page stays
+  // visible around a "maximized" card — window-manager maximize, not
+  // fullscreen (the alioth9 comment on #37).
+  cardMaximized: {
+    width: '100%',
+    maxHeight: '100%',
+    flex: 1,
+  },
   word: {
     fontSize: 28,
     fontWeight: '700',
@@ -53,6 +70,19 @@ export const popupStyles = StyleSheet.create({
   body: {
     marginTop: 12,
     marginBottom: 16,
+    // #37 — claim the leftover height between the header and the footer
+    // so a maximized card scrolls its body instead of hugging the top
+    // with the footer floating mid-card.
+    // flexGrow/flexShrink, NOT `flex: 1`: `flex: 1` also sets
+    // flexBasis:0%, which inside the Normal card (auto height, clamped
+    // by maxHeight:520) would measure this ScrollView as 0 tall and
+    // collapse the body entirely. Leaving flexBasis at its 'auto'
+    // default keeps the content-sized measurement in the Normal card
+    // and still fills/shrinks in the Maximized one. flexShrink also
+    // fixes a latent bug in BOTH sizes: RN defaults flexShrink to 0, so
+    // an over-long body currently pushes the footer out of the card.
+    flexGrow: 1,
+    flexShrink: 1,
   },
   section: {
     paddingTop: 4,
@@ -227,7 +257,7 @@ export const popupStyles = StyleSheet.create({
   // Settings gear button — same 32×32 circular bordered touch target as
   // the font-size −/+ glyph buttons (crisp on e-ink; no emoji, no PNG).
   // marginLeft separates it from the stepper; it is the rightmost element
-  // so the header reads [headword] … [−][A][+][⚙] — gear in the corner.
+  // so the header reads [headword] … [−][A][+][□] [⚙] — gear in the corner.
   gearButton: {
     width: 32,
     height: 32,
@@ -341,6 +371,10 @@ export const popupStyles = StyleSheet.create({
   // Scrollable settings body, below the fixed title + Back header.
   settingsBody: {
     marginTop: 4,
+    // #37 — same reason as `body`; see the note there for why this is
+    // flexGrow/flexShrink and not `flex: 1`.
+    flexGrow: 1,
+    flexShrink: 1,
   },
   // One dictionary row: a tappable checkbox+name on the left, the reorder /
   // remove controls on the right.

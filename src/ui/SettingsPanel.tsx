@@ -14,8 +14,13 @@ import {t} from '../i18n/i18n';
 // disable toggle and Move-up/Move-down controls (no drag — resolution #4;
 // e-ink). Reads through the registry seam (getPopupActions, guard-null) so
 // it stays engine-free. F4/F5/F7 add more sections below this one.
-export default function SettingsPanel(_props: {
+export default function SettingsPanel(props: {
   resume?: ResultSnapshot;
+  // #37 — the popup's session maximize state, passed down so opening
+  // Settings keeps the window at the size the user left it (otherwise
+  // the frame snaps small on Settings and big again on Back — two extra
+  // full-screen e-ink repaints per visit).
+  maximized?: boolean;
 }): React.JSX.Element {
   const [prefs, setPrefs] = React.useState<DictPref[]>([]);
   // Dictionary enable/disable/reorder edits are staged LOCALLY and only
@@ -226,7 +231,10 @@ export default function SettingsPanel(_props: {
   const multiDict = prefs.length > 1;
 
   return (
-    <View style={styles.card}>
+    <View
+      style={
+        props.maximized ? [styles.card, styles.cardMaximized] : styles.card
+      }>
       <View style={styles.settingsHeaderRow}>
         <Text style={styles.settingsTitle}>{t('settings.title')}</Text>
         <View style={styles.settingsHeaderActions}>

@@ -3051,4 +3051,237 @@ describe('DefinitionPopup — granted-region probe', () => {
       '[region] view=800x600dp requested=720x540 card=640',
     ]);
   });
+
+  test('toggling maximize emits NO second [region] line', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    // The backdrop's own size does not change when the card resizes, and
+    // the handler never setStates — a toggle costs no extra probe work.
+    act(() => findByLabel(tree, 'Maximize window')[0].props.onPress());
+    act(() => findByLabel(tree, 'Restore window')[0].props.onPress());
+    expect(regionLines()).toHaveLength(1);
+  });
+});
+
+// --- Maximize toggle (#37 FR2) -------------------------------------
+//
+// NOTE ON WHAT THESE CAN PROVE: react-native is mocked to host strings
+// with StyleSheet.create as identity, so Yoga never runs. These pin that
+// the right style OBJECTS are attached to the right elements — never that
+// the resolved layout is correct. On-device verification is separate.
+
+const flattenStyle = (s: unknown): Record<string, unknown> => {
+  if (Array.isArray(s)) {
+    return Object.assign({}, ...s.map(flattenStyle));
+  }
+  if (s && typeof s === 'object') {
+    return s as Record<string, unknown>;
+  }
+  return {};
+};
+
+// The card is the only white-backed View — in the result and recognizing
+// kinds it is DefinitionPopup's, in the settings kind it is
+// SettingsPanel's own.
+const findCardStyle = (tree: ReactTestRenderer): Record<string, unknown> => {
+  const card = tree.root.findAll(
+    n =>
+      n.type === 'View' &&
+      flattenStyle(n.props.style).backgroundColor === '#ffffff',
+  );
+  expect(card).toHaveLength(1);
+  return flattenStyle(card[0].props.style);
+};
+
+// The scrolling body. Only one ScrollView renders in the result kind.
+const findBodyStyle = (tree: ReactTestRenderer): Record<string, unknown> =>
+  flattenStyle(tree.root.findAll(n => n.type === 'ScrollView')[0].props.style);
+
+const tryFindMaxBtn = (
+  tree: ReactTestRenderer,
+  label: 'Maximize window' | 'Restore window',
+) =>
+  tree.root.findAllByProps({
+    accessibilityRole: 'button',
+    accessibilityLabel: label,
+  });
+
+const findMaxBtn = (
+  tree: ReactTestRenderer,
+  label: 'Maximize window' | 'Restore window',
+) => tryFindMaxBtn(tree, label)[0];
+
+const maximize = (tree: ReactTestRenderer): void =>
+  act(() => findMaxBtn(tree, 'Maximize window').props.onPress());
+
+describe('DefinitionPopup — maximize toggle', () => {
+  test('the result header renders the toggle, in the Normal state', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    expect(tryFindMaxBtn(tree, 'Maximize window')).toHaveLength(1);
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(0);
+    expect(collectText(tree)).toContain('□');
+  });
+
+  test('pressing it flips the label and the glyph (the state flipped)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    expect(tryFindMaxBtn(tree, 'Maximize window')).toHaveLength(0);
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+    expect(collectText(tree)).toContain('▣');
+  });
+
+  test('round-trip: pressing again restores (a true boolean, not a latch)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    act(() => findMaxBtn(tree, 'Restore window').props.onPress());
+    expect(tryFindMaxBtn(tree, 'Maximize window')).toHaveLength(1);
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(0);
+  });
+
+  test('the toggle is NOT rendered during the recognizing kind', () => {
+    // Same rule as the font stepper: nothing to size, and the state is
+    // transient.
+    const tree = renderPopup();
+    act(() => showRecognizing());
+    expect(tryFindMaxBtn(tree, 'Maximize window')).toHaveLength(0);
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(0);
+  });
+
+  test('the toggle renders in the not-found result state too', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(notFound('zzz')));
+    expect(tryFindMaxBtn(tree, 'Maximize window')).toHaveLength(1);
+  });
+
+  test('the Normal card is unregressed — still the fixed 640 x 520', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    expect(findCardStyle(tree)).toEqual(
+      expect.objectContaining({width: 640, maxHeight: 520}),
+    );
+  });
+
+  test('maximized layers cardMaximized over card (incl. maxHeight 100%)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    // maxHeight:'100%' is load-bearing — without it card's maxHeight:520
+    // clamps the flexed height and the card grows wider but not taller.
+    expect(findCardStyle(tree)).toEqual(
+      expect.objectContaining({
+        width: '100%',
+        maxHeight: '100%',
+        flex: 1,
+      }),
+    );
+  });
+
+  test('the body ScrollView flexes in BOTH sizes, and is not flex: 1', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    // `flex: 1` would also set flexBasis:0%, which collapses the body to
+    // zero height inside the auto-height Normal card. Pin the shorthand
+    // OUT so a refactor cannot silently reintroduce that.
+    expect(findBodyStyle(tree)).toEqual(
+      expect.objectContaining({flexGrow: 1, flexShrink: 1}),
+    );
+    expect(findBodyStyle(tree).flex).toBeUndefined();
+    maximize(tree);
+    expect(findBodyStyle(tree)).toEqual(
+      expect.objectContaining({flexGrow: 1, flexShrink: 1}),
+    );
+    expect(findBodyStyle(tree).flex).toBeUndefined();
+  });
+
+  test('the recognizing card carries the maximized size (no frame snap)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    act(() => showRecognizing());
+    // The control is hidden here, but the geometry is carried: otherwise
+    // a second lookup renders small then large — two full repaints.
+    expect(findCardStyle(tree)).toEqual(expect.objectContaining({flex: 1}));
+  });
+
+  test('the state survives hide -> show (session-only, no reset on close)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    act(() => hideDefinition());
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+  });
+
+  test('a NEW headword does not reset it (the reset effects skip it)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    act(() => showDefinition(found('WordNet', 'world', 'the earth')));
+    expect(collectText(tree)).toContain('the earth');
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+  });
+
+  test('Settings opens at the same size, and Back returns still maximized', async () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    await act(async () => pressLabel(tree, 'Settings'));
+    await flush();
+    expect(currentKind()).toBe('settings');
+    // SettingsPanel owns its own card; the prop must reach it.
+    expect(findCardStyle(tree)).toEqual(expect.objectContaining({flex: 1}));
+    await act(async () => pressLabel(tree, 'Back'));
+    await flush();
+    expect(currentKind()).toBe('result');
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+    expect(findCardStyle(tree)).toEqual(expect.objectContaining({flex: 1}));
+  });
+
+  test('Settings stays Normal-sized when the popup is not maximized', async () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    await act(async () => pressLabel(tree, 'Settings'));
+    await flush();
+    expect(findCardStyle(tree)).toEqual(
+      expect.objectContaining({width: 640, maxHeight: 520}),
+    );
+    expect(findCardStyle(tree).flex).toBeUndefined();
+  });
+
+  test('toggling mid-stream keeps the pending sections intact', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(loading('hello', ['WordNet', 'User'])));
+    maximize(tree);
+    const text = collectText(tree);
+    expect(text).toContain('Loading…');
+    expect(text).toContain('WordNet');
+    expect(text).toContain('User');
+  });
+
+  test('toggling does not remount the OCR field (typed text survives)', () => {
+    const tree = renderPopup();
+    act(() =>
+      showDefinition(found('WordNet', 'rain', 'water'), 'OCR: rain', true),
+    );
+    enterEdit(tree);
+    act(() => findByLabel(tree, 'OCR')[0].props.onChangeText('helo'));
+    maximize(tree);
+    // A conditional wrapper around the card would remount the TextInput,
+    // losing the correction and re-firing autoFocus.
+    expect(findByLabel(tree, 'OCR')[0].props.value).toBe('helo');
+  });
+
+  test('toggling does not remount the add-definition form', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(notFound('zzz')));
+    act(() => pressLabel(tree, 'Add definition'));
+    act(() => findByLabel(tree, 'Definition')[0].props.onChangeText('my def'));
+    maximize(tree);
+    expect(findByLabel(tree, 'Definition')).toHaveLength(1);
+    expect(findByLabel(tree, 'Definition')[0].props.value).toBe('my def');
+  });
 });

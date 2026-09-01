@@ -73,6 +73,14 @@ const stepDown = (size: FontSize): FontSize => {
 export default function DefinitionPopup(): React.JSX.Element {
   const [state, setState] = useState<PopupState>(getCurrentState);
   const [fontSize, setFontSize] = useState<FontSize>('S');
+  // #37 — Normal (the 640-wide card) vs Maximized (fills the plugin
+  // view). Session-only component state, exactly like `fontSize` above:
+  // the popup never unmounts, so a user who maximizes stays maximized
+  // across show/hide AND across new headwords, and only a JS bundle
+  // reload resets it. Deliberately NOT persisted (no PopupActions port,
+  // no user.db) and deliberately NOT cleared by the reset effects below,
+  // which key on queriedFor / headword.
+  const [maximized, setMaximized] = useState(false);
   const [tab, setTab] = useState<Tab>('definition');
   const [thesaurus, setThesaurus] = useState<ThesaurusCache | null>(null);
   // The OCR-correction field's current text (lasso flow only). Seeded
@@ -274,6 +282,8 @@ export default function DefinitionPopup(): React.JSX.Element {
     [],
   );
 
+  const handleToggleMaximize = useCallback(() => setMaximized(m => !m), []);
+
   // #37 — region probe. The popup renders inside a firmware-granted
   // overlay region, NOT the screen: both buttons register regionType:1
   // (center dialog) at 720x540 (registerNoteLassoButton.ts:72-75,
@@ -386,6 +396,13 @@ export default function DefinitionPopup(): React.JSX.Element {
     return <View pointerEvents="none" style={styles.hidden} />;
   }
 
+  // One card geometry for every visible state, so opening Settings or
+  // starting a new lookup never snaps the window between sizes — each
+  // snap is a full-screen e-ink repaint.
+  const cardStyle = maximized
+    ? [styles.card, styles.cardMaximized]
+    : styles.card;
+
   if (state.kind === 'recognizing') {
     // Tap-to-popup speedup: the lasso flow opens the popup
     // immediately on tap, BEFORE the firmware finishes lasso-element
@@ -396,10 +413,14 @@ export default function DefinitionPopup(): React.JSX.Element {
     //
     // Font-size buttons are intentionally hidden here — there's no
     // body text to scale. They reappear when the result kind takes
-    // over.
+    // over. The maximize toggle is hidden for the same reason (nothing
+    // to maximize, and the state is transient), but the card STYLE is
+    // still carried: a maximized user doing a second lookup would
+    // otherwise get recognizing (small) then result (large) — two
+    // geometry changes and two full repaints for one word of diff.
     return (
       <View style={styles.backdrop} onLayout={handleBackdropLayout}>
-        <View style={styles.card}>
+        <View style={cardStyle}>
           <Text style={styles.recognizing}>{t('popup.recognizing')}</Text>
           {state.ocrLabel ? (
             <Text style={styles.ocrLabel}>{state.ocrLabel}</Text>
@@ -423,7 +444,7 @@ export default function DefinitionPopup(): React.JSX.Element {
     return (
       <View style={styles.backdrop} onLayout={handleBackdropLayout}>
         {renderDismissLayer(closeSettings)}
-        <SettingsPanel resume={state.resume} />
+        <SettingsPanel resume={state.resume} maximized={maximized} />
       </View>
     );
   }
@@ -491,13 +512,14 @@ export default function DefinitionPopup(): React.JSX.Element {
   return (
     <View style={styles.backdrop} onLayout={handleBackdropLayout}>
       {renderDismissLayer(handleClose)}
-      <View style={styles.card}>
+      <View style={cardStyle}>
         <View style={styles.headerRow}>
           <Text style={[styles.word, styles.headerWordWrap]} numberOfLines={1}>
             {headerWord}
           </Text>
-          {/* Right-aligned control cluster: the font-size stepper, then the
-              settings gear pinned to the top-right corner of the card. */}
+          {/* Right-aligned control cluster: the font-size stepper, the
+              maximize toggle, then the settings gear pinned to the
+              top-right corner of the card. */}
           <View style={styles.headerControls}>
           <View style={styles.fontSizeRow}>
             <Pressable
@@ -538,6 +560,21 @@ export default function DefinitionPopup(): React.JSX.Element {
               </Text>
             </Pressable>
           </View>
+          {/* #37 — Normal/Maximized window toggle. Reuses the stepper's
+              button + label styles: it IS a size control, and the 6dp
+              gap groups it with [−][A][+] while the gear keeps its 10dp
+              gap as the settings separator. □/▣ are Geometric Shapes,
+              the same non-emoji BMP family as the proven ↑↓ ☑☐ ⚙ ✎ —
+              single code point, no variation selector. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              maximized ? t('popup.restore') : t('popup.maximize')
+            }
+            onPress={handleToggleMaximize}
+            style={styles.fontSizeButton}>
+            <Text style={styles.fontSizeLabel}>{maximized ? '▣' : '□'}</Text>
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('settings.open')}
