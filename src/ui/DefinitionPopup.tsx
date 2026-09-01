@@ -44,20 +44,52 @@ type ThesaurusCache = {
   result: ThesaurusResult;
 };
 
-// Body-text size selector. The two-button A−/A+ control cycles
-// through these in order. Default is 'S' (the historical body-text
-// size); the user can step up to M or L when a definition is hard
-// to read at the default. Persists across show/hide cycles within
-// a session — the popup component never unmounts, only changes
-// what it renders — so a user who picks L sees L on the next tap
-// without re-clicking. Resets only when the JS bundle reloads.
-const FONT_SIZES = ['S', 'M', 'L'] as const;
+// Body-text size selector. The two-button A− / A+ control cycles
+// through these in order and the middle of the stepper shows where you
+// are. Default is 'S' (the historical body-text size). Persists across
+// show/hide cycles within a session — the popup component never
+// unmounts, only changes what it renders — so a user who picks L sees L
+// on the next tap without re-clicking. Resets only when the JS bundle
+// reloads, and is deliberately INDEPENDENT of `maximized`: big text in
+// a small window is a legitimate combination (issue #37's reporter
+// wanted page context preserved).
+//
+// Five levels, linear in +0.25 steps to a 2x body. 2x is a principled
+// ceiling: 17dp * 2 = 34dp = 15.3pt physical (1dp = 1/160in), the top
+// of the large-print range. Steps stay LINEAR rather than geometric so
+// S/M/L keep their shipped values byte-for-byte and this change only
+// appends. The side effect is desirable: the relative jump shrinks as
+// you climb (+25%, +20%, +16.7%, +14.3%) — coarse control where the
+// text is small, fine control at the top where the user is dialling in.
+const FONT_SIZES = ['S', 'M', 'L', 'XL', 'XXL'] as const;
 type FontSize = (typeof FONT_SIZES)[number];
 
 const FONT_SCALE: Record<FontSize, number> = {
   S: 1,
   M: 1.25,
   L: 1.5,
+  XL: 1.75,
+  XXL: 2,
+};
+
+// What the middle of the ( − )( ? )( + ) stepper shows. With five levels
+// the greyed end buttons no longer identify M / L / XL — three of the
+// five present identically — and each probe costs a full e-ink repaint.
+//
+// 'XXL' renders as '2X' because three capitals at fontSize 18 measure
+// ~32dp and exactly fill the 32dp fontSizeIndicator slot, while '2X'
+// measures ~21dp and leaves the centering intact. Deliberately NOT
+// localized: these are size codes rather than words, the two touch
+// targets beside them already carry localized labels
+// (popup.fontSmaller / popup.fontLarger) in all 7 locales, and a
+// translated string would overflow the fixed 32dp box and knock on to
+// the headword's width budget in every locale independently.
+const FONT_LEVEL_LABEL: Record<FontSize, string> = {
+  S: 'S',
+  M: 'M',
+  L: 'L',
+  XL: 'XL',
+  XXL: '2X',
 };
 
 const stepUp = (size: FontSize): FontSize => {
@@ -471,6 +503,16 @@ export default function DefinitionPopup(): React.JSX.Element {
   // loading section flips to a hit.
   const showSourceBadges = hits.length + loading.length >= 2;
   const fontScale = FONT_SCALE[fontSize];
+  // Headings grow at HALF the body's rate. Full-rate would put the
+  // headword at 56dp at 2X, and in the Normal card's 392dp of header
+  // space (598 content − 194 controls − 12 gap) that ellipses a
+  // 13-character word — "photosynthesis" would render as
+  // "photosynthe…". Half-rate keeps the headword strictly above the
+  // body at every level (1.65x down to 1.24x) while capping it at 42,
+  // where ~17 characters still fit. A single derived expression, NOT a
+  // second Record<FontSize, number>: one scale table, one damping
+  // factor, so there is no way for the two to drift apart.
+  const headingScale = 1 + (fontScale - 1) / 2;
   // OCR-correction field shows ONLY in the lasso flow, gated on an
   // EXPLICIT editable===true (Designer ruling 4 / flag 5) — never
   // inferred from ocrLabel presence. doc-select omits editable and so
@@ -527,7 +569,13 @@ export default function DefinitionPopup(): React.JSX.Element {
       {renderDismissLayer(handleClose)}
       <View style={cardStyle}>
         <View style={styles.headerRow}>
-          <Text style={[styles.word, styles.headerWordWrap]} numberOfLines={1}>
+          <Text
+            style={[
+              styles.word,
+              styles.headerWordWrap,
+              scaleText(styles.word, headingScale),
+            ]}
+            numberOfLines={1}>
             {headerWord}
           </Text>
           {/* Right-aligned control cluster: the font-size stepper, the
@@ -552,8 +600,13 @@ export default function DefinitionPopup(): React.JSX.Element {
                 −
               </Text>
             </Pressable>
+            {/* The middle slot shows WHICH level you are on. With five
+                levels the greyed end buttons no longer identify M / L /
+                XL, and each probe costs a full e-ink repaint. */}
             <View style={styles.fontSizeIndicator}>
-              <Text style={styles.fontSizeLabel}>A</Text>
+              <Text style={styles.fontSizeLabel}>
+                {FONT_LEVEL_LABEL[fontSize]}
+              </Text>
             </View>
             <Pressable
               accessibilityRole="button"
@@ -693,7 +746,11 @@ export default function DefinitionPopup(): React.JSX.Element {
               <View>
                 {thesaurusForHeadword.synonyms.length > 0 ? (
                   <View style={styles.thesaurusGroup}>
-                    <Text style={styles.thesaurusLabel}>
+                    <Text
+                      style={[
+                        styles.thesaurusLabel,
+                        scaleText(styles.thesaurusLabel, headingScale),
+                      ]}>
                       {t('popup.synonyms')}
                     </Text>
                     {/* Synonyms are non-tappable (plain text list). */}
@@ -708,7 +765,11 @@ export default function DefinitionPopup(): React.JSX.Element {
                 ) : null}
                 {thesaurusForHeadword.antonyms.length > 0 ? (
                   <View style={styles.thesaurusGroup}>
-                    <Text style={styles.thesaurusLabel}>
+                    <Text
+                      style={[
+                        styles.thesaurusLabel,
+                        scaleText(styles.thesaurusLabel, headingScale),
+                      ]}>
                       {t('popup.antonyms')}
                     </Text>
                     <Text

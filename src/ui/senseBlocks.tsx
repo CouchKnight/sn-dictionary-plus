@@ -3,7 +3,7 @@
 // from SourceSection's WordNet branch.
 //
 // fontScale is the multiplier the popup's A−/A+ buttons set on the
-// definition body text (1.0 / 1.25 / 1.5 for S / M / L). Chrome
+// definition body text (1.0 to 2.0, for S / M / L / XL / 2X). Chrome
 // (badge sizes, paddings) stays at its base size; only readable body
 // text — definition, examples, sense index, synonym list — scales.
 

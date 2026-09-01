@@ -718,11 +718,14 @@ describe('DefinitionPopup', () => {
       const plus = findFontBtn(tree, 'Increase text size');
       expect(minus.props.disabled).toBe(true);
       expect(plus.props.disabled).toBe(false);
-      // All three glyphs always rendered — minus, A indicator, plus.
+      // All three glyphs always rendered — minus, level indicator, plus.
+      // The middle slot now names the level rather than showing a static
+      // 'A', so assert it via the slot and not via collectText: 'L' is a
+      // substring of 'XL', so a toContain would pass vacuously.
       const text = collectText(tree);
       expect(text).toContain('−');
-      expect(text).toContain('A');
       expect(text).toContain('+');
+      expect(findLevelLabel(tree)).toBe('S');
     });
 
     test('M: both buttons active, neither greyed', () => {
@@ -739,12 +742,15 @@ describe('DefinitionPopup', () => {
       expect(plus.props.disabled).toBe(false);
     });
 
-    test('L: plus is greyed and disabled; minus is active', () => {
+    test('2X (the top): plus is greyed and disabled; minus is active', () => {
       const tree = renderPopup();
       act(() => {
         showDefinition(found('WordNet', 'hello', 'a greeting'));
       });
+      // Four presses to the top now, not two — S M L XL 2X.
       act(() => {
+        findFontBtn(tree, 'Increase text size').props.onPress();
+        findFontBtn(tree, 'Increase text size').props.onPress();
         findFontBtn(tree, 'Increase text size').props.onPress();
         findFontBtn(tree, 'Increase text size').props.onPress();
       });
@@ -752,23 +758,28 @@ describe('DefinitionPopup', () => {
       const plus = findFontBtn(tree, 'Increase text size');
       expect(minus.props.disabled).toBe(false);
       expect(plus.props.disabled).toBe(true);
+      expect(findLevelLabel(tree)).toBe('2X');
     });
 
-    test('round-trip: pressing plus twice then minus twice returns to S state', () => {
+    test('round-trip: four up then four down returns to the S state', () => {
       const tree = renderPopup();
       act(() => {
         showDefinition(found('WordNet', 'hello', 'a greeting'));
       });
       act(() => {
-        findFontBtn(tree, 'Increase text size').props.onPress();
-        findFontBtn(tree, 'Increase text size').props.onPress();
+        for (let i = 0; i < 4; i++) {
+          findFontBtn(tree, 'Increase text size').props.onPress();
+        }
       });
+      expect(findLevelLabel(tree)).toBe('2X');
       act(() => {
-        findFontBtn(tree, 'Decrease text size').props.onPress();
-        findFontBtn(tree, 'Decrease text size').props.onPress();
+        for (let i = 0; i < 4; i++) {
+          findFontBtn(tree, 'Decrease text size').props.onPress();
+        }
       });
       expect(findFontBtn(tree, 'Decrease text size').props.disabled).toBe(true);
       expect(findFontBtn(tree, 'Increase text size').props.disabled).toBe(false);
+      expect(findLevelLabel(tree)).toBe('S');
     });
 
     test('font-size controls are NOT rendered during the recognizing kind', () => {
@@ -778,6 +789,12 @@ describe('DefinitionPopup', () => {
       });
       expect(tryFindFontBtn(tree, 'Decrease text size')).toHaveLength(0);
       expect(tryFindFontBtn(tree, 'Increase text size')).toHaveLength(0);
+      // ...and neither is the level indicator between them.
+      expect(
+        tree.root.findAll(
+          n => n.props.style === popupStyles.fontSizeIndicator,
+        ),
+      ).toHaveLength(0);
     });
 
     test('fontScale propagates to the definition body — Text fontSize grows on A+', () => {
@@ -3418,12 +3435,13 @@ describe('DefinitionPopup — pen-dismiss while maximized (#32 x #37)', () => {
 // numbers reach the right styles, not that the result looks right.)
 
 // Press A+ n times.
-const bump = (tree: ReactTestRenderer, n: number): void =>
+const bump = (tree: ReactTestRenderer, n: number): void => {
   act(() => {
     for (let i = 0; i < n; i++) {
       findByLabel(tree, 'Increase text size')[0].props.onPress();
     }
   });
+};
 
 // The flattened style of the first Text whose style ARRAY includes the
 // given base style object — i.e. what that element actually renders at.
@@ -3477,8 +3495,8 @@ describe('scaleText', () => {
 });
 
 describe('DefinitionPopup — lineHeight scales with the body font size', () => {
-  // [S, M, L]
-  const SCALES = [1, 1.25, 1.5];
+  // [S, M, L, XL, 2X]
+  const SCALES = [1, 1.25, 1.5, 1.75, 2];
 
   test('definition: fontSize and lineHeight both scale, at every level', () => {
     const tree = renderPopup();
@@ -3600,7 +3618,7 @@ const canShrinkNow = (tree: ReactTestRenderer): boolean =>
 describe('DefinitionPopup — font stepper bounds', () => {
   // One below the number of levels: the count of A+ presses that must
   // all be permitted before the top is reached.
-  const STEPS_TO_TOP = 2;
+  const STEPS_TO_TOP = 4;
 
   test('A+ stays enabled at every level below the top, then greys once', () => {
     // THE REGRESSION TEST. A literal endpoint (`fontSize !== 'L'`) fails
@@ -3638,7 +3656,192 @@ describe('DefinitionPopup — font stepper bounds', () => {
     // stepUp clamps on the array bound; the size must not run off the end
     // (which would make FONT_SCALE[size] undefined and the fontSize NaN).
     const {fontSize} = scaledOf(tree, popupStyles.definition);
-    expect(fontSize).toBe(17 * 1.5);
+    expect(fontSize).toBe(17 * 2);
     expect(canGrowNow(tree)).toBe(false);
+  });
+});
+
+// --- Five body-text levels, the indicator, and the damped headings ------
+
+// The level shown in the middle of the stepper. Located by the
+// fontSizeIndicator style rather than by text, because 'L' is a substring
+// of 'XL' and a collectText/toContain assertion would pass vacuously.
+const findLevelLabel = (tree: ReactTestRenderer): string => {
+  const slot = tree.root.findAll(
+    n => n.props.style === popupStyles.fontSizeIndicator,
+  )[0];
+  return String(slot.findAll(n => n.type === 'Text')[0].props.children);
+};
+
+const LEVEL_LABELS = ['S', 'M', 'L', 'XL', '2X'];
+
+// A result carrying a phonetic, so one fixture exercises the whole
+// headword > body > phonetic hierarchy.
+const withPhonetic = (word: string, definition: string): LookupResult => ({
+  queriedFor: word,
+  hits: [
+    {
+      source: 'WordNet',
+      entry: {word, definition, format: 'plain', phonetic: 'huh-LOH'},
+    },
+  ],
+  loading: [],
+});
+
+// Render, show `result`, and step up `k` times.
+const atLevel = (k: number, result?: LookupResult): ReactTestRenderer => {
+  const tree = renderPopup();
+  act(() => {
+    showDefinition(result ?? found('WordNet', 'hello', 'a greeting'));
+  });
+  bump(tree, k);
+  return tree;
+};
+
+describe('DefinitionPopup — five font levels', () => {
+  test('the indicator names each level, and XXL renders as 2X', () => {
+    LEVEL_LABELS.forEach((label, k) => {
+      expect(findLevelLabel(atLevel(k))).toBe(label);
+    });
+  });
+
+  test('the indicator holds exactly one Text, never wider than 2 capitals', () => {
+    // Pins the 32dp fit constraint: at fontSize 18 two capitals measure
+    // ~21dp inside the 32dp slot, three ~32dp and would spill into the
+    // + circle. A future 'XXL' label fails here rather than on-device.
+    LEVEL_LABELS.forEach((_label, k) => {
+      const tree = atLevel(k);
+      const slot = tree.root.findAll(
+        n => n.props.style === popupStyles.fontSizeIndicator,
+      );
+      expect(slot).toHaveLength(1);
+      expect(slot[0].findAll(n => n.type === 'Text')).toHaveLength(1);
+      expect(findLevelLabel(tree).length).toBeLessThanOrEqual(2);
+    });
+  });
+
+  test('the definition fontSize walks the exact scale table', () => {
+    // Includes that S/M/L are UNREGRESSED — the new levels only append.
+    const expected = [17, 21.25, 25.5, 29.75, 34];
+    expected.forEach((size, k) => {
+      expect(scaledOf(atLevel(k), popupStyles.definition).fontSize).toBe(size);
+    });
+  });
+
+  test('the new levels are reachable end-to-end, not just tabulated', () => {
+    const tree = atLevel(4);
+    expect(findLevelLabel(tree)).toBe('2X');
+    expect(scaledOf(tree, popupStyles.definition)).toEqual(
+      expect.objectContaining({fontSize: 34, lineHeight: 48}),
+    );
+  });
+
+  test('the headword scales at HALF the body rate', () => {
+    // 28 * (1 + (scale-1)/2). Full rate would reach 56 at 2X and ellipse
+    // a 13-character word in the Normal card.
+    const expected = [28, 31.5, 35, 38.5, 42];
+    expected.forEach((size, k) => {
+      expect(scaledOf(atLevel(k), popupStyles.word).fontSize).toBe(size);
+    });
+  });
+
+  test('headword > body > phonetic holds at ALL five levels', () => {
+    // The invariant, not five magic numbers: this survives any future
+    // edit to the scale table, which five hard-coded triples would not.
+    LEVEL_LABELS.forEach((_label, k) => {
+      const tree = atLevel(k, withPhonetic('hello', 'a greeting'));
+      const word = scaledOf(tree, popupStyles.word).fontSize!;
+      const body = scaledOf(tree, popupStyles.definition).fontSize!;
+      const phon = scaledOf(tree, popupStyles.phonetic).fontSize!;
+      expect(word).toBeGreaterThan(body);
+      expect(body).toBeGreaterThan(phon);
+    });
+  });
+
+  test('the thesaurus section heading is damped too, never a caption', async () => {
+    const expected = [16, 18, 20, 22, 24];
+    for (let k = 0; k < expected.length; k++) {
+      setPopupActions(
+        fakeActions(async () => ({
+          lang: 'en',
+          omw: {synonyms: ['glad'], antonyms: ['sad']},
+        })),
+      );
+      const tree = renderPopup();
+      act(() => showDefinition(wordnetHit('happy', 'feeling joy')));
+      await act(async () =>
+        tree.root
+          .findAll(
+            n => n.props.accessibilityLabel === 'Thesaurus' && n.props.onPress,
+          )[0]
+          .props.onPress(),
+      );
+      await flush();
+      bump(tree, k);
+      const label = scaledOf(tree, popupStyles.thesaurusLabel).fontSize!;
+      const list = scaledOf(tree, popupStyles.thesaurusList).fontSize!;
+      expect(label).toBe(expected[k]);
+      // A heading must not collapse into a caption beside its own list.
+      expect(label).toBeGreaterThanOrEqual(list * 0.7);
+    }
+  });
+
+  test('chrome stays FIXED at 2X — badges, status, and button labels', () => {
+    // Each of these renders with its bare style object, no scaling layer.
+    // Catches an over-eager "scale everything" refactor: scaling notFound
+    // alone would invert it against the add-definition form below it.
+    const tree = atLevel(4, {
+      queriedFor: 'hello',
+      hits: [
+        {source: 'WordNet', entry: {word: 'hello', definition: 'a', format: 'plain'}},
+        {source: 'User', entry: {word: 'hello', definition: 'b', format: 'plain'}},
+      ],
+      loading: [],
+    });
+    const rendersBare = (base: object): boolean =>
+      tree.root.findAll(n => n.props.style === base).length > 0;
+    expect(rendersBare(popupStyles.sourceBadge)).toBe(true);
+    expect(rendersBare(popupStyles.closeLabel)).toBe(true);
+    expect(rendersBare(popupStyles.fontSizeLabel)).toBe(true);
+
+    const nf = atLevel(4, notFound('zzz'));
+    expect(
+      nf.root.findAll(n => n.props.style === popupStyles.notFound),
+    ).not.toHaveLength(0);
+  });
+});
+
+describe('DefinitionPopup — font level and maximize are orthogonal', () => {
+  test('toggling maximize does not disturb the font level', () => {
+    const tree = atLevel(4);
+    expect(scaledOf(tree, popupStyles.definition).fontSize).toBe(34);
+    act(() => findByLabel(tree, 'Maximize window')[0].props.onPress());
+    expect(scaledOf(tree, popupStyles.definition).fontSize).toBe(34);
+    act(() => findByLabel(tree, 'Restore window')[0].props.onPress());
+    expect(scaledOf(tree, popupStyles.definition).fontSize).toBe(34);
+    expect(findLevelLabel(tree)).toBe('2X');
+  });
+
+  test('stepping the font level does not disturb the window size', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    act(() => findByLabel(tree, 'Maximize window')[0].props.onPress());
+    bump(tree, 4);
+    expect(findCardStyle(tree)).toEqual(
+      expect.objectContaining({width: '100%', maxHeight: '100%', flex: 1}),
+    );
+    expect(findLevelLabel(tree)).toBe('2X');
+  });
+
+  test('the level survives hide -> show, and a new headword', () => {
+    const tree = atLevel(4);
+    act(() => hideDefinition());
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    expect(findLevelLabel(tree)).toBe('2X');
+    // The headword reset effect clears tab/thesaurus/copyStatus — not
+    // the font level.
+    act(() => showDefinition(found('WordNet', 'world', 'the earth')));
+    expect(collectText(tree)).toContain('the earth');
+    expect(findLevelLabel(tree)).toBe('2X');
   });
 });

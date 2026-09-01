@@ -7,7 +7,7 @@
 // senses stack as numbered blocks with a hairline divider, and each
 // bilingual example renders as "source — translation".
 //
-// fontScale is the popup's A−/A+ body multiplier (1.0 / 1.25 / 1.5).
+// fontScale is the popup's A−/A+ body multiplier (1.0 to 2.0).
 // Chrome (the POS badge) stays at base size; only readable body text —
 // gloss, sense index, examples, note body — scales, exactly as SenseList
 // threads it.

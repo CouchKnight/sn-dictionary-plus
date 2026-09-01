@@ -10,8 +10,8 @@
 //   'html'    — strip tags via htmlToPlainText and render as text
 //   'plain'   — render the definition string verbatim
 //
-// fontScale is the popup-level body-text multiplier (1.0 / 1.25 /
-// 1.5 for S / M / L). The badge is chrome and stays at its base
+// fontScale is the popup-level body-text multiplier (1.0 to 2.0, for
+// S / M / L / XL / 2X). The badge is chrome and stays at its base
 // size; only definition body text scales.
 
 import React, {useMemo} from 'react';

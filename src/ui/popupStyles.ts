@@ -525,8 +525,10 @@ export const popupStyles = StyleSheet.create({
     borderRadius: 4,
   },
   // Body-text size selector: three circular elements in a row,
-  // ( − )( A )( + ). The outer two are Pressables; the middle is a
-  // static "A" indicator that anchors the meaning to "text size".
+  // ( − )( S )( + ). The outer two are Pressables; the middle shows the
+  // CURRENT level (S / M / L / XL / 2X) — with five levels the greyed
+  // ends no longer identify which one you are on. The − and + glyphs
+  // carry the "text size" anchor the old static "A" used to.
   // Same paradigm as every browser zoom control, PDF / image
   // viewer, etc. — universally recognised, direction unambiguous.
   // At a bound the unusable button greys out instead of hiding so
@@ -551,6 +553,11 @@ export const popupStyles = StyleSheet.create({
   // The middle indicator is structurally a Text with no border — it
   // sits between the two Pressables but isn't itself one. Keeps the
   // touch targets unambiguous (only − and + are pressable).
+  // It carries the current level label, which is bounded to TWO
+  // capitals so it fits: at fontSize 18 two caps measure ~21dp inside
+  // this 32dp box, while three ("XXL") measure ~32dp and would fill it
+  // exactly and spill toward the + circle. That is why the top level
+  // renders as "2X".
   fontSizeIndicator: {
     width: 32,
     height: 32,
