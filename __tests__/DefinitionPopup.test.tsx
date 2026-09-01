@@ -72,6 +72,7 @@ import {htmlToPlainText} from '../src/ui/htmlToPlainText';
 // StyleSheet.create is identity-mocked above, so these are the very
 // objects the rendered tree carries — reference-comparable.
 import {popupStyles, scaleText} from '../src/ui/popupStyles';
+import {FONT_SIZES} from '../src/ui/DefinitionPopup';
 
 const closePluginView = PluginManager.closePluginView as jest.Mock;
 const copyMock = copyToClipboard as jest.Mock;
@@ -3616,9 +3617,9 @@ const canShrinkNow = (tree: ReactTestRenderer): boolean =>
   !findByLabel(tree, 'Decrease text size')[0].props.disabled;
 
 describe('DefinitionPopup — font stepper bounds', () => {
-  // One below the number of levels: the count of A+ presses that must
-  // all be permitted before the top is reached.
-  const STEPS_TO_TOP = 4;
+  // One below the number of levels — DERIVED, so appending a level
+  // updates this test rather than silently under-testing the new range.
+  const STEPS_TO_TOP = FONT_SIZES.length - 1;
 
   test('A+ stays enabled at every level below the top, then greys once', () => {
     // THE REGRESSION TEST. A literal endpoint (`fontSize !== 'L'`) fails
@@ -3716,6 +3717,10 @@ describe('DefinitionPopup — five font levels', () => {
       );
       expect(slot).toHaveLength(1);
       expect(slot[0].findAll(n => n.type === 'Text')).toHaveLength(1);
+      // Character count as a PROXY for width — it is not a measurement.
+      // Two narrow capitals fit with ~10dp to spare, three ('XXL') fill
+      // the box exactly; but 'WW' is also two characters and would
+      // overflow. It holds for the five labels that exist.
       expect(findLevelLabel(tree).length).toBeLessThanOrEqual(2);
     });
   });
@@ -3758,8 +3763,14 @@ describe('DefinitionPopup — five font levels', () => {
     });
   });
 
-  test('the thesaurus section heading is damped too, never a caption', async () => {
-    const expected = [16, 18, 20, 22, 24];
+  test('the thesaurus section heading holds its ratio to its own list', async () => {
+    // FULL body rate, not the headword's damped one. Damping is a
+    // horizontal-space remedy for the header row; this label sits in the
+    // scrolling body and wraps freely, and damping it would shrink it
+    // relative to its own list at every level (0.94x at S down to 0.71x
+    // at 2X) — manufacturing the very "heading half the size of its
+    // content" problem it was meant to prevent.
+    const expected = [16, 20, 24, 28, 32];
     for (let k = 0; k < expected.length; k++) {
       setPopupActions(
         fakeActions(async () => ({
@@ -3781,8 +3792,11 @@ describe('DefinitionPopup — five font levels', () => {
       const label = scaledOf(tree, popupStyles.thesaurusLabel).fontSize!;
       const list = scaledOf(tree, popupStyles.thesaurusList).fontSize!;
       expect(label).toBe(expected[k]);
-      // A heading must not collapse into a caption beside its own list.
-      expect(label).toBeGreaterThanOrEqual(list * 0.7);
+      // The invariant that actually holds and means something: the
+      // heading/list relationship is scale-INVARIANT. (The bound this
+      // replaces — label >= list * 0.7 — was reverse-engineered from the
+      // answer: at 2X it read 24 >= 23.8 and caught nothing.)
+      expect(label / list).toBeCloseTo(16 / 17, 5);
     }
   });
 
@@ -3843,5 +3857,79 @@ describe('DefinitionPopup — font level and maximize are orthogonal', () => {
     act(() => showDefinition(found('WordNet', 'world', 'the earth')));
     expect(collectText(tree)).toContain('the earth');
     expect(findLevelLabel(tree)).toBe('2X');
+  });
+});
+
+// --- The line-box property, and the paths scaled() now owns ------------
+
+describe('scalable body styles leave room for the font line box', () => {
+  test('every scalable style clears the line-box ratio at EVERY level', () => {
+    // The claim this whole milestone rests on, stated as a property
+    // rather than as today's constants. Because scaling is proportional,
+    // lineHeight/fontSize is level-invariant — so checking the BASE
+    // style checks all five levels at once, and a style added tomorrow
+    // at fontSize 20 / lineHeight 20 fails here instead of on-device.
+    //
+    // 1.171 is Roboto's metric line box (ascent .927 + descent .244).
+    // Note what this does and does not assert: on RN 0.79 a lineHeight
+    // below it does NOT clip — CustomLineHeightSpan implements the CSS
+    // half-leading model and deliberately lets glyphs draw outside their
+    // box — it means consecutive lines encroach. It is a leading
+    // criterion, not a clipping one.
+    const LINE_BOX = 1.171;
+    const scalable = [
+      popupStyles.definition,
+      popupStyles.example,
+      popupStyles.synonyms,
+      popupStyles.thesaurusList,
+    ];
+    for (const style of scalable) {
+      expect(style.lineHeight / style.fontSize).toBeGreaterThanOrEqual(
+        LINE_BOX,
+      );
+    }
+  });
+});
+
+describe('DefinitionPopup — the WordNet and FVDP body paths scale too', () => {
+  // A mutation sweep found that reverting senseBlocks' definition to
+  // unscaled left the whole suite green: scaledOf picks the FIRST match,
+  // and the plain-format fixtures used almost everywhere resolve to
+  // SourceSection's node, never senseBlocks'. A wordnet fixture is the
+  // only way to reach the most-rendered string in the app.
+  test('the WordNet definition body scales — the most-rendered string', () => {
+    const tree = renderPopup();
+    act(() => {
+      showDefinition(found('WordNet', 'AI', aiEntry, 'wordnet'));
+    });
+    bump(tree, 4);
+    expect(scaledOf(tree, popupStyles.definition)).toEqual(
+      expect.objectContaining({fontSize: 34, lineHeight: 48}),
+    );
+  });
+
+  test('the WordNet sense index scales', () => {
+    const tree = renderPopup();
+    act(() => {
+      showDefinition(found('WordNet', 'AI', aiEntry, 'wordnet'));
+    });
+    bump(tree, 4);
+    expect(scaledOf(tree, popupStyles.senseIndex).fontSize).toBe(32);
+  });
+
+  test('the synonyms LABEL takes its size from synonyms, at every level', () => {
+    // One of the two sites scaled() cannot own — it registers
+    // synonymsLabel (weight + colour, no size) but borrows synonyms'
+    // size — so it is guarded here instead.
+    [1, 1.25, 1.5, 1.75, 2].forEach((scale, k) => {
+      const tree = renderPopup();
+      act(() => {
+        showDefinition(found('WordNet', 'AI', aiEntry, 'wordnet'));
+      });
+      bump(tree, k);
+      const label = scaledOf(tree, popupStyles.synonymsLabel);
+      expect(label.fontSize).toBe(14 * scale);
+      expect(label.lineHeight).toBe(20 * scale);
+    });
   });
 });

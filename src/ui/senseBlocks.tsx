@@ -10,7 +10,7 @@
 import React from 'react';
 import {Text, View} from 'react-native';
 import {labelForPos, type WordNetSense} from './wordnetFormatter';
-import {popupStyles as styles, scaleText} from './popupStyles';
+import {popupStyles as styles, scaled, scaleText} from './popupStyles';
 import {t} from '../i18n/i18n';
 
 type SenseListProps = {senses: WordNetSense[]; fontScale: number};
@@ -47,11 +47,11 @@ export const SenseBlock = ({
       {sense.pos ? (
         <Text style={styles.posBadge}>{labelForPos(sense.pos)}</Text>
       ) : null}
-      <Text style={[styles.senseIndex, scaleText(styles.senseIndex, fontScale)]}>
+      <Text style={scaled(styles.senseIndex, fontScale)}>
         {`${sense.index}.`}
       </Text>
     </View>
-    <Text style={[styles.definition, scaleText(styles.definition, fontScale)]}>
+    <Text style={scaled(styles.definition, fontScale)}>
       {sense.definition}
     </Text>
     {sense.examples.length > 0 ? (
@@ -59,14 +59,18 @@ export const SenseBlock = ({
         {sense.examples.map((ex, j) => (
           <Text
             key={j}
-            style={[styles.example, scaleText(styles.example, fontScale)]}>
+            style={scaled(styles.example, fontScale)}>
             “{ex}”
           </Text>
         ))}
       </View>
     ) : null}
     {sense.synonyms.length > 0 ? (
-      <Text style={[styles.synonyms, scaleText(styles.synonyms, fontScale)]}>
+      <Text style={scaled(styles.synonyms, fontScale)}>
+        {/* Not scaled(): this renders `synonymsLabel` — weight and
+            colour, no size of its own — at `synonyms`' size, so the
+            registered style and the scaled one deliberately differ.
+            The scaled entry must stay LAST here. */}
         <Text
           style={[styles.synonymsLabel, scaleText(styles.synonyms, fontScale)]}>
           {`${t('popup.synonyms')}: `}

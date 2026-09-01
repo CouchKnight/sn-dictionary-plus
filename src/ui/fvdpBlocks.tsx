@@ -19,7 +19,7 @@ import type {
   FvdpSense,
   ParsedFvdpEntry,
 } from './fvdpFormatter';
-import {popupStyles as styles, scaleText} from './popupStyles';
+import {popupStyles as styles, scaled, scaleText} from './popupStyles';
 
 type FvdpTextProps = {parsed: ParsedFvdpEntry; fontScale: number};
 
@@ -53,7 +53,11 @@ const FvdpSectionBlock = ({
   if (section.kind === 'note') {
     return (
       <View style={[styles.sense, showDivider && styles.senseDivider]}>
-        <Text style={[styles.synonyms, scaleText(styles.synonyms, fontScale)]}>
+        <Text style={scaled(styles.synonyms, fontScale)}>
+          {/* Not scaled(): this renders `synonymsLabel` — weight and
+              colour, no size of its own — at `synonyms`' size, so the
+              registered style and the scaled one deliberately differ.
+              The scaled entry must stay LAST here. */}
           <Text
             style={[styles.synonymsLabel, scaleText(styles.synonyms, fontScale)]}>
             {`${section.label}: `}
@@ -98,12 +102,12 @@ const FvdpSenseBlock = ({
 }: FvdpSenseBlockProps): React.JSX.Element => (
   <View style={[styles.sense, showDivider && styles.senseDivider]}>
     <View style={styles.senseHeader}>
-      <Text style={[styles.senseIndex, scaleText(styles.senseIndex, fontScale)]}>
+      <Text style={scaled(styles.senseIndex, fontScale)}>
         {`${index}.`}
       </Text>
     </View>
     {sense.gloss ? (
-      <Text style={[styles.definition, scaleText(styles.definition, fontScale)]}>
+      <Text style={scaled(styles.definition, fontScale)}>
         {sense.gloss}
       </Text>
     ) : null}
@@ -112,7 +116,7 @@ const FvdpSenseBlock = ({
         {sense.examples.map((ex, j) => (
           <Text
             key={j}
-            style={[styles.example, scaleText(styles.example, fontScale)]}>
+            style={scaled(styles.example, fontScale)}>
             {ex.translation ? `${ex.source} — ${ex.translation}` : ex.source}
           </Text>
         ))}

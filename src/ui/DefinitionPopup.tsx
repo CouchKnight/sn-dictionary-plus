@@ -22,7 +22,7 @@ import {
 import {getPenToolObserver} from '../native/penToolObserver';
 import SettingsPanel from './SettingsPanel';
 import {SourceSection} from './SourceSection';
-import {popupStyles as styles, scaleText} from './popupStyles';
+import {popupStyles as styles, scaled} from './popupStyles';
 import {t} from '../i18n/i18n';
 import {parseWordNetEntry} from './wordnetFormatter';
 import {buildCopyText} from './copyText';
@@ -61,7 +61,9 @@ type ThesaurusCache = {
 // appends. The side effect is desirable: the relative jump shrinks as
 // you climb (+25%, +20%, +16.7%, +14.3%) — coarse control where the
 // text is small, fine control at the top where the user is dialling in.
-const FONT_SIZES = ['S', 'M', 'L', 'XL', 'XXL'] as const;
+// Exported so tests derive the level count from the single source of
+// truth rather than hard-coding "four presses to the top".
+export const FONT_SIZES = ['S', 'M', 'L', 'XL', 'XXL'] as const;
 type FontSize = (typeof FONT_SIZES)[number];
 
 const FONT_SCALE: Record<FontSize, number> = {
@@ -503,15 +505,23 @@ export default function DefinitionPopup(): React.JSX.Element {
   // loading section flips to a hit.
   const showSourceBadges = hits.length + loading.length >= 2;
   const fontScale = FONT_SCALE[fontSize];
-  // Headings grow at HALF the body's rate. Full-rate would put the
-  // headword at 56dp at 2X, and in the Normal card's 392dp of header
-  // space (598 content − 194 controls − 12 gap) that ellipses a
-  // 13-character word — "photosynthesis" would render as
-  // "photosynthe…". Half-rate keeps the headword strictly above the
-  // body at every level (1.65x down to 1.24x) while capping it at 42,
-  // where ~17 characters still fit. A single derived expression, NOT a
-  // second Record<FontSize, number>: one scale table, one damping
-  // factor, so there is no way for the two to drift apart.
+  // The HEADWORD's rate — half the body's, and its only consumer.
+  //
+  // This damping is a HORIZONTAL-SPACE remedy, not a typographic one:
+  // the headword shares one un-wrapping row with the control cluster, so
+  // at full rate it would reach 56dp at 2X and ellipse a 13-character
+  // word inside the Normal card's 392dp of header space. Half-rate caps
+  // it at 42, where ~17 characters still fit, while keeping it strictly
+  // above the body at every level (1.65x down to 1.24x).
+  //
+  // Nothing else may borrow it. Body text that merely LOOKS like a
+  // heading — the thesaurus section labels — has no width constraint
+  // (it sits in the scrolling body and wraps freely), and damping there
+  // would shrink it relative to its own list at every level, which is
+  // the opposite of what a heading wants.
+  //
+  // A single derived expression, NOT a second Record<FontSize, number>:
+  // one scale table, one damping factor, so the two cannot drift apart.
   const headingScale = 1 + (fontScale - 1) / 2;
   // OCR-correction field shows ONLY in the lasso flow, gated on an
   // EXPLICIT editable===true (Designer ruling 4 / flag 5) — never
@@ -571,9 +581,8 @@ export default function DefinitionPopup(): React.JSX.Element {
         <View style={styles.headerRow}>
           <Text
             style={[
-              styles.word,
               styles.headerWordWrap,
-              scaleText(styles.word, headingScale),
+              ...scaled(styles.word, headingScale),
             ]}
             numberOfLines={1}>
             {headerWord}
@@ -659,7 +668,7 @@ export default function DefinitionPopup(): React.JSX.Element {
         </View>
         {headerPhonetic ? (
           <Text
-            style={[styles.phonetic, scaleText(styles.phonetic, fontScale)]}
+            style={scaled(styles.phonetic, fontScale)}
             accessibilityLabel={`${t('popup.pronunciation')}: ${headerPhonetic}`}
             numberOfLines={1}>
             {headerPhonetic}
@@ -746,37 +755,23 @@ export default function DefinitionPopup(): React.JSX.Element {
               <View>
                 {thesaurusForHeadword.synonyms.length > 0 ? (
                   <View style={styles.thesaurusGroup}>
-                    <Text
-                      style={[
-                        styles.thesaurusLabel,
-                        scaleText(styles.thesaurusLabel, headingScale),
-                      ]}>
+                    <Text style={scaled(styles.thesaurusLabel, fontScale)}>
                       {t('popup.synonyms')}
                     </Text>
                     {/* Synonyms are non-tappable (plain text list). */}
                     <Text
-                      style={[
-                        styles.thesaurusList,
-                        scaleText(styles.thesaurusList, fontScale),
-                      ]}>
+                      style={scaled(styles.thesaurusList, fontScale)}>
                       {thesaurusForHeadword.synonyms.join(', ')}
                     </Text>
                   </View>
                 ) : null}
                 {thesaurusForHeadword.antonyms.length > 0 ? (
                   <View style={styles.thesaurusGroup}>
-                    <Text
-                      style={[
-                        styles.thesaurusLabel,
-                        scaleText(styles.thesaurusLabel, headingScale),
-                      ]}>
+                    <Text style={scaled(styles.thesaurusLabel, fontScale)}>
                       {t('popup.antonyms')}
                     </Text>
                     <Text
-                      style={[
-                        styles.thesaurusList,
-                        scaleText(styles.thesaurusList, fontScale),
-                      ]}>
+                      style={scaled(styles.thesaurusList, fontScale)}>
                       {thesaurusForHeadword.antonyms.join(', ')}
                     </Text>
                   </View>

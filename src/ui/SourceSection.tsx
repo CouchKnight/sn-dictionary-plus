@@ -23,7 +23,7 @@ import {parseFvdpEntry} from './fvdpFormatter';
 import {FvdpText} from './fvdpBlocks';
 import {containsRenderableHtml} from './htmlParser';
 import {HtmlText} from './HtmlText';
-import {popupStyles as styles, scaleText} from './popupStyles';
+import {popupStyles as styles, scaled} from './popupStyles';
 
 type SourceSectionProps = {
   hit: SourceHit;
@@ -46,7 +46,7 @@ export const SourceSection = ({
   // that property explicit and footgun-free for future call sites.
   const {definition, format} = hit.entry;
   const scaledDefinitionStyle = useMemo(
-    () => [styles.definition, scaleText(styles.definition, fontScale)],
+    () => scaled(styles.definition, fontScale),
     [fontScale],
   );
   const body = useMemo(() => {

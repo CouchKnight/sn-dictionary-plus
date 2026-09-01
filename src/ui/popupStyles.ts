@@ -758,11 +758,29 @@ export const popupStyles = StyleSheet.create({
 //
 // Takes the STYLE OBJECT rather than a bare number, which is what makes
 // fontSize and lineHeight travel together and removes the
-// `styles.X.fontSize` repetition from every call site. The scaled result
-// must always come LAST in a style array — RN composes left-to-right.
+// `styles.X.fontSize` repetition from every call site.
+//
+// Prefer `scaled` below over calling this directly: RN composes a style
+// array left-to-right, so a scaled result placed anywhere but LAST is
+// silently overridden by the base and that element quietly stops
+// scaling — with no error, and (as a mutation sweep showed) with the
+// whole suite still green. `scaled` owns the composition so there is no
+// order left to get wrong.
 type ScalableText = {fontSize: number; lineHeight?: number};
 
 export const scaleText = (base: ScalableText, scale: number): ScalableText =>
   base.lineHeight === undefined
     ? {fontSize: base.fontSize * scale}
     : {fontSize: base.fontSize * scale, lineHeight: base.lineHeight * scale};
+
+// The style array for a scalable text element: the base, then its scaled
+// sizes, in the only order that works. Use this at every call site whose
+// registered style IS the style being scaled — which is all of them
+// except the two synonym LABELS, where the element deliberately renders
+// `synonymsLabel` (weight + colour, no size of its own) at `synonyms`'
+// size; those two keep an explicit array and are covered by tests
+// instead.
+export const scaled = (base: ScalableText, scale: number): ScalableText[] => [
+  base,
+  scaleText(base, scale),
+];
