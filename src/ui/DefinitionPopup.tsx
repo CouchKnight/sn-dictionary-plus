@@ -22,7 +22,7 @@ import {
 import {getPenToolObserver} from '../native/penToolObserver';
 import SettingsPanel from './SettingsPanel';
 import {SourceSection} from './SourceSection';
-import {popupStyles as styles} from './popupStyles';
+import {popupStyles as styles, scaleText} from './popupStyles';
 import {t} from '../i18n/i18n';
 import {parseWordNetEntry} from './wordnetFormatter';
 import {buildCopyText} from './copyText';
@@ -593,10 +593,7 @@ export default function DefinitionPopup(): React.JSX.Element {
         </View>
         {headerPhonetic ? (
           <Text
-            style={[
-              styles.phonetic,
-              {fontSize: styles.phonetic.fontSize * fontScale},
-            ]}
+            style={[styles.phonetic, scaleText(styles.phonetic, fontScale)]}
             accessibilityLabel={`${t('popup.pronunciation')}: ${headerPhonetic}`}
             numberOfLines={1}>
             {headerPhonetic}
@@ -690,7 +687,7 @@ export default function DefinitionPopup(): React.JSX.Element {
                     <Text
                       style={[
                         styles.thesaurusList,
-                        {fontSize: styles.thesaurusList.fontSize * fontScale},
+                        scaleText(styles.thesaurusList, fontScale),
                       ]}>
                       {thesaurusForHeadword.synonyms.join(', ')}
                     </Text>
@@ -704,7 +701,7 @@ export default function DefinitionPopup(): React.JSX.Element {
                     <Text
                       style={[
                         styles.thesaurusList,
-                        {fontSize: styles.thesaurusList.fontSize * fontScale},
+                        scaleText(styles.thesaurusList, fontScale),
                       ]}>
                       {thesaurusForHeadword.antonyms.join(', ')}
                     </Text>

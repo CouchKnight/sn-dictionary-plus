@@ -69,6 +69,9 @@ import type {
 import {copyToClipboard} from '../src/native/clipboard';
 import {getPenToolObserver} from '../src/native/penToolObserver';
 import {htmlToPlainText} from '../src/ui/htmlToPlainText';
+// StyleSheet.create is identity-mocked above, so these are the very
+// objects the rendered tree carries — reference-comparable.
+import {popupStyles, scaleText} from '../src/ui/popupStyles';
 
 const closePluginView = PluginManager.closePluginView as jest.Mock;
 const copyMock = copyToClipboard as jest.Mock;
@@ -3399,5 +3402,183 @@ describe('DefinitionPopup — pen-dismiss while maximized (#32 x #37)', () => {
     expect(currentKind()).toBe('result');
     expect(closePluginView).not.toHaveBeenCalled();
     expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+  });
+});
+
+// --- Body-text scaling: fontSize AND lineHeight -------------------------
+//
+// Every scalable body style carries a FIXED lineHeight (definition 24,
+// example 22, synonyms 20). Scaling only fontSize meant that at L the
+// definition was 25.5dp of type inside a 24dp line box — Roboto's line
+// box is 1.171em, so consecutive lines collided. These pin that both
+// numbers now move together, which keeps the leading ratio constant at
+// every level.
+//
+// (Yoga never runs here and no text is measured — these prove the right
+// numbers reach the right styles, not that the result looks right.)
+
+// Press A+ n times.
+const bump = (tree: ReactTestRenderer, n: number): void =>
+  act(() => {
+    for (let i = 0; i < n; i++) {
+      findByLabel(tree, 'Increase text size')[0].props.onPress();
+    }
+  });
+
+// The flattened style of the first Text whose style ARRAY includes the
+// given base style object — i.e. what that element actually renders at.
+const scaledOf = (
+  tree: ReactTestRenderer,
+  base: object,
+): {fontSize?: number; lineHeight?: number} => {
+  const node = tree.root.findAll(
+    n => Array.isArray(n.props.style) && n.props.style.includes(base),
+  )[0];
+  return Object.assign(
+    {},
+    ...(node.props.style as unknown[]).filter(s => s && typeof s === 'object'),
+  );
+};
+
+// A WordNet body carrying both an example and a synonym list, so one
+// fixture exercises every Tier-1 style in senseBlocks.
+const aiEntry =
+  'AI\n' +
+  '     n 1: an agency of the United States Army responsible for ' +
+  'providing intelligence [syn: {Army Intelligence}]\n' +
+  '     2: the branch of computer science that deal with writing ' +
+  'computer programs that can solve problems creatively; ' +
+  '"workers in AI hope to imitate intelligence" ' +
+  '[syn: {artificial intelligence}]';
+
+describe('scaleText', () => {
+  test('scales fontSize and lineHeight together when the base has both', () => {
+    expect(scaleText(popupStyles.definition, 2)).toEqual({
+      fontSize: 34,
+      lineHeight: 48,
+    });
+  });
+
+  test('OMITS the lineHeight key entirely when the base has none', () => {
+    // Load-bearing: returning {lineHeight: undefined} would compose OVER
+    // the base under StyleSheet.flatten (and under the Object.assign in
+    // `scaledOf` above) and ERASE a lineHeight the base did define.
+    const result = scaleText(popupStyles.phonetic, 2);
+    expect(result).toEqual({fontSize: 32});
+    expect('lineHeight' in result).toBe(false);
+  });
+
+  test('a scale of 1 is the identity on both numbers', () => {
+    expect(scaleText(popupStyles.definition, 1)).toEqual({
+      fontSize: 17,
+      lineHeight: 24,
+    });
+  });
+});
+
+describe('DefinitionPopup — lineHeight scales with the body font size', () => {
+  // [S, M, L]
+  const SCALES = [1, 1.25, 1.5];
+
+  test('definition: fontSize and lineHeight both scale, at every level', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    SCALES.forEach((scale, k) => {
+      const tree2 = renderPopup();
+      act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+      bump(tree2, k);
+      expect(scaledOf(tree2, popupStyles.definition)).toEqual(
+        expect.objectContaining({fontSize: 17 * scale, lineHeight: 24 * scale}),
+      );
+    });
+    expect(scaledOf(tree, popupStyles.definition).lineHeight).toBe(24);
+  });
+
+  test('the leading RATIO is invariant across levels (the actual property)', () => {
+    // Stronger than five magic numbers: whatever the scale table says,
+    // lineHeight/fontSize must never drift, because that ratio is what
+    // stops lines colliding.
+    SCALES.forEach((_scale, k) => {
+      const tree = renderPopup();
+      act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+      bump(tree, k);
+      const {fontSize, lineHeight} = scaledOf(tree, popupStyles.definition);
+      expect(lineHeight! / fontSize!).toBeCloseTo(24 / 17, 10);
+    });
+  });
+
+  test('example and synonyms scale their lineHeight too (senseBlocks)', () => {
+    SCALES.forEach((scale, k) => {
+      const tree = renderPopup();
+      act(() => showDefinition(found('WordNet', 'AI', aiEntry, 'wordnet')));
+      bump(tree, k);
+      expect(scaledOf(tree, popupStyles.example)).toEqual(
+        expect.objectContaining({fontSize: 15 * scale, lineHeight: 22 * scale}),
+      );
+      expect(scaledOf(tree, popupStyles.synonyms)).toEqual(
+        expect.objectContaining({fontSize: 14 * scale, lineHeight: 20 * scale}),
+      );
+    });
+  });
+
+  test('the synonyms LABEL borrows synonyms sizing — never NaN', () => {
+    // synonymsLabel has no fontSize of its own; scaling it directly
+    // would yield NaN, which Android renders as invisible text.
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'AI', aiEntry, 'wordnet')));
+    bump(tree, 2);
+    const label = scaledOf(tree, popupStyles.synonymsLabel);
+    expect(label.fontSize).toBe(21);
+    expect(Number.isNaN(label.fontSize)).toBe(false);
+  });
+
+  test('thesaurusList scales its lineHeight (DefinitionPopup call site)', async () => {
+    setPopupActions(
+      fakeActions(async () => ({
+        lang: 'en',
+        omw: {synonyms: ['glad'], antonyms: ['sad']},
+      })),
+    );
+    const tree = renderPopup();
+    act(() => showDefinition(wordnetHit('happy', 'feeling joy')));
+    await act(async () =>
+      tree.root
+        .findAll(
+          n => n.props.accessibilityLabel === 'Thesaurus' && n.props.onPress,
+        )[0]
+        .props.onPress(),
+    );
+    await flush();
+    bump(tree, 2);
+    expect(scaledOf(tree, popupStyles.thesaurusList)).toEqual(
+      expect.objectContaining({fontSize: 25.5, lineHeight: 36}),
+    );
+  });
+
+  test('phonetic scales fontSize but gains NO lineHeight', () => {
+    // It has none at base; RN derives the line box from the font and
+    // grows it correctly. Inventing one here would clip the glyphs.
+    const tree = renderPopup();
+    act(() =>
+      showDefinition({
+        queriedFor: 'hello',
+        hits: [
+          {
+            source: 'WordNet',
+            entry: {
+              word: 'hello',
+              definition: 'a greeting',
+              format: 'plain',
+              phonetic: 'huh-LOH',
+            },
+          },
+        ],
+        loading: [],
+      }),
+    );
+    bump(tree, 2);
+    const phon = scaledOf(tree, popupStyles.phonetic);
+    expect(phon.fontSize).toBe(24);
+    expect(phon.lineHeight).toBeUndefined();
   });
 });

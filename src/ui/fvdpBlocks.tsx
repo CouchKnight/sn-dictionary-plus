@@ -19,11 +19,7 @@ import type {
   FvdpSense,
   ParsedFvdpEntry,
 } from './fvdpFormatter';
-import {popupStyles as styles} from './popupStyles';
-
-const scaledFont = (base: number, scale: number): {fontSize: number} => ({
-  fontSize: base * scale,
-});
+import {popupStyles as styles, scaleText} from './popupStyles';
 
 type FvdpTextProps = {parsed: ParsedFvdpEntry; fontScale: number};
 
@@ -57,9 +53,9 @@ const FvdpSectionBlock = ({
   if (section.kind === 'note') {
     return (
       <View style={[styles.sense, showDivider && styles.senseDivider]}>
-        <Text style={[styles.synonyms, scaledFont(styles.synonyms.fontSize, fontScale)]}>
+        <Text style={[styles.synonyms, scaleText(styles.synonyms, fontScale)]}>
           <Text
-            style={[styles.synonymsLabel, scaledFont(styles.synonyms.fontSize, fontScale)]}>
+            style={[styles.synonymsLabel, scaleText(styles.synonyms, fontScale)]}>
             {`${section.label}: `}
           </Text>
           {section.body}
@@ -102,12 +98,12 @@ const FvdpSenseBlock = ({
 }: FvdpSenseBlockProps): React.JSX.Element => (
   <View style={[styles.sense, showDivider && styles.senseDivider]}>
     <View style={styles.senseHeader}>
-      <Text style={[styles.senseIndex, scaledFont(styles.senseIndex.fontSize, fontScale)]}>
+      <Text style={[styles.senseIndex, scaleText(styles.senseIndex, fontScale)]}>
         {`${index}.`}
       </Text>
     </View>
     {sense.gloss ? (
-      <Text style={[styles.definition, scaledFont(styles.definition.fontSize, fontScale)]}>
+      <Text style={[styles.definition, scaleText(styles.definition, fontScale)]}>
         {sense.gloss}
       </Text>
     ) : null}
@@ -116,7 +112,7 @@ const FvdpSenseBlock = ({
         {sense.examples.map((ex, j) => (
           <Text
             key={j}
-            style={[styles.example, scaledFont(styles.example.fontSize, fontScale)]}>
+            style={[styles.example, scaleText(styles.example, fontScale)]}>
             {ex.translation ? `${ex.source} — ${ex.translation}` : ex.source}
           </Text>
         ))}

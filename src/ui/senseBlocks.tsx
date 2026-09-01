@@ -10,14 +10,8 @@
 import React from 'react';
 import {Text, View} from 'react-native';
 import {labelForPos, type WordNetSense} from './wordnetFormatter';
-import {popupStyles as styles} from './popupStyles';
+import {popupStyles as styles, scaleText} from './popupStyles';
 import {t} from '../i18n/i18n';
-
-// All callers pull fontSize off StyleSheet.create entries where the
-// number is always defined; no need for an undefined branch.
-const scaledFont = (base: number, scale: number): {fontSize: number} => ({
-  fontSize: base * scale,
-});
 
 type SenseListProps = {senses: WordNetSense[]; fontScale: number};
 
@@ -53,11 +47,11 @@ export const SenseBlock = ({
       {sense.pos ? (
         <Text style={styles.posBadge}>{labelForPos(sense.pos)}</Text>
       ) : null}
-      <Text style={[styles.senseIndex, scaledFont(styles.senseIndex.fontSize, fontScale)]}>
+      <Text style={[styles.senseIndex, scaleText(styles.senseIndex, fontScale)]}>
         {`${sense.index}.`}
       </Text>
     </View>
-    <Text style={[styles.definition, scaledFont(styles.definition.fontSize, fontScale)]}>
+    <Text style={[styles.definition, scaleText(styles.definition, fontScale)]}>
       {sense.definition}
     </Text>
     {sense.examples.length > 0 ? (
@@ -65,16 +59,16 @@ export const SenseBlock = ({
         {sense.examples.map((ex, j) => (
           <Text
             key={j}
-            style={[styles.example, scaledFont(styles.example.fontSize, fontScale)]}>
+            style={[styles.example, scaleText(styles.example, fontScale)]}>
             “{ex}”
           </Text>
         ))}
       </View>
     ) : null}
     {sense.synonyms.length > 0 ? (
-      <Text style={[styles.synonyms, scaledFont(styles.synonyms.fontSize, fontScale)]}>
+      <Text style={[styles.synonyms, scaleText(styles.synonyms, fontScale)]}>
         <Text
-          style={[styles.synonymsLabel, scaledFont(styles.synonyms.fontSize, fontScale)]}>
+          style={[styles.synonymsLabel, scaleText(styles.synonyms, fontScale)]}>
           {`${t('popup.synonyms')}: `}
         </Text>
         {sense.synonyms.join(', ')}

@@ -735,3 +735,27 @@ export const popupStyles = StyleSheet.create({
     color: '#000000',
   },
 });
+
+// Body text the user can enlarge with A− / A+. `fontSize` alone is NOT
+// enough: every scalable body style also carries a fixed `lineHeight`
+// (definition 24, example 22, synonyms 20), and Roboto's line box is
+// 1.171em — so at L the definition is 17*1.5 = 25.5dp of type inside a
+// 24dp line box and consecutive lines collide. Scaling both keeps the
+// leading ratio constant at every level.
+//
+// The `lineHeight === undefined` branch is LOAD-BEARING, not a nicety:
+// returning `{lineHeight: undefined}` would be composed OVER the base
+// style by StyleSheet.flatten (and by Object.assign in the test's
+// `flatten` helper) and would ERASE a lineHeight the base did define.
+// Emit the key only when there is a value for it.
+//
+// Takes the STYLE OBJECT rather than a bare number, which is what makes
+// fontSize and lineHeight travel together and removes the
+// `styles.X.fontSize` repetition from every call site. The scaled result
+// must always come LAST in a style array — RN composes left-to-right.
+type ScalableText = {fontSize: number; lineHeight?: number};
+
+export const scaleText = (base: ScalableText, scale: number): ScalableText =>
+  base.lineHeight === undefined
+    ? {fontSize: base.fontSize * scale}
+    : {fontSize: base.fontSize * scale, lineHeight: base.lineHeight * scale};
