@@ -3582,3 +3582,63 @@ describe('DefinitionPopup — lineHeight scales with the body font size', () => 
     expect(phon.lineHeight).toBeUndefined();
   });
 });
+
+// --- Font stepper bounds are DERIVED, not hard-coded ---------------------
+//
+// canShrink/canGrow used to compare against the literal endpoints 'S' and
+// 'L'. That is invisible with three levels and catastrophic the moment a
+// fourth is appended: A+ would grey out at L and every level above it
+// would be unreachable. These pin the bound to the step functions, so the
+// literals cannot come back.
+
+const canGrowNow = (tree: ReactTestRenderer): boolean =>
+  !findByLabel(tree, 'Increase text size')[0].props.disabled;
+
+const canShrinkNow = (tree: ReactTestRenderer): boolean =>
+  !findByLabel(tree, 'Decrease text size')[0].props.disabled;
+
+describe('DefinitionPopup — font stepper bounds', () => {
+  // One below the number of levels: the count of A+ presses that must
+  // all be permitted before the top is reached.
+  const STEPS_TO_TOP = 2;
+
+  test('A+ stays enabled at every level below the top, then greys once', () => {
+    // THE REGRESSION TEST. A literal endpoint (`fontSize !== 'L'`) fails
+    // this the moment the level list grows past that literal.
+    for (let k = 0; k < STEPS_TO_TOP; k++) {
+      const tree = renderPopup();
+      act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+      bump(tree, k);
+      expect(canGrowNow(tree)).toBe(true);
+    }
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    bump(tree, STEPS_TO_TOP);
+    expect(canGrowNow(tree)).toBe(false);
+  });
+
+  test('A- mirrors it: enabled at every level above the bottom', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    // At the bottom A- is greyed...
+    expect(canShrinkNow(tree)).toBe(false);
+    // ...and enabled at every level above it.
+    for (let k = 1; k <= STEPS_TO_TOP; k++) {
+      const tree2 = renderPopup();
+      act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+      bump(tree2, k);
+      expect(canShrinkNow(tree2)).toBe(true);
+    }
+  });
+
+  test('pressing A+ past the top is a no-op, not an overflow', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    bump(tree, STEPS_TO_TOP + 3);
+    // stepUp clamps on the array bound; the size must not run off the end
+    // (which would make FONT_SCALE[size] undefined and the fontSize NaN).
+    const {fontSize} = scaledOf(tree, popupStyles.definition);
+    expect(fontSize).toBe(17 * 1.5);
+    expect(canGrowNow(tree)).toBe(false);
+  });
+});

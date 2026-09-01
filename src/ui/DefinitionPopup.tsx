@@ -504,10 +504,23 @@ export default function DefinitionPopup(): React.JSX.Element {
     thesaurusForHeadword !== null &&
     (thesaurusForHeadword.synonyms.length > 0 ||
       thesaurusForHeadword.antonyms.length > 0);
-  // Hide the bound buttons rather than greying them — disabled-state
-  // styling on e-ink can look like dead pixels.
-  const canShrink = fontSize !== 'S';
-  const canGrow = fontSize !== 'L';
+  // At a bound the unusable button greys out instead of hiding, so the
+  // header layout never shifts.
+  //
+  // Derived from the step functions, NOT from literal endpoints: stepUp
+  // and stepDown already clamp on FONT_SIZES, so "a size that steps to
+  // itself" IS the bound, and FONT_SIZES stays the single source of
+  // truth. A hard-coded `fontSize !== 'L'` silently breaks the moment a
+  // level is appended — A+ would stay disabled at L and the new level
+  // would be permanently unreachable.
+  //
+  // The step-identity form is preferred over comparing against
+  // FONT_SIZES[length - 1] because that would re-derive the clamp rule a
+  // second time; this pins the button state to what the buttons actually
+  // do, so a future non-linear or skip-a-level step cannot desync the
+  // greying from the behaviour.
+  const canShrink = stepDown(fontSize) !== fontSize;
+  const canGrow = stepUp(fontSize) !== fontSize;
 
   return (
     <View style={styles.backdrop} onLayout={handleBackdropLayout}>
