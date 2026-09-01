@@ -2937,3 +2937,118 @@ describe('DefinitionPopup — pen-only tap-outside-to-close (#32)', () => {
     expect(closePluginView).toHaveBeenCalledTimes(1);
   });
 });
+
+// --- Region probe (#37 FR0) ----------------------------------------
+//
+// The popup renders inside a firmware-granted overlay region, not the
+// screen, and whether the firmware honours the registered regionType /
+// 720x540 is unverified on-device. The backdrop's onLayout reports that
+// grant; these tests pin the emitted format, the once-per-distinct-region
+// latch, and the boundary guard on the native event.
+
+// The backdrop is the only node carrying onLayout.
+const findLayoutTarget = (tree: ReactTestRenderer) =>
+  tree.root.findAll(n => typeof n.props.onLayout === 'function')[0];
+
+const fireLayout = (
+  tree: ReactTestRenderer,
+  width: number,
+  height: number,
+): void => {
+  act(() => {
+    findLayoutTarget(tree).props.onLayout({
+      nativeEvent: {layout: {x: 0, y: 0, width, height}},
+    });
+  });
+};
+
+describe('DefinitionPopup — granted-region probe', () => {
+  let logSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  // MUST restore, or the leaked spy swallows output for the rest of the
+  // suite.
+  afterEach(() => {
+    logSpy.mockRestore();
+  });
+
+  // Only the probe's own lines — the popup shares console.log with the
+  // rest of the app's [tag] logging.
+  const regionLines = (): string[] =>
+    logSpy.mock.calls
+      .map(args => String(args[0]))
+      .filter(line => line.startsWith('[region]'));
+
+  test('logs the measured region, in dp, with the request for comparison', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    expect(regionLines()).toEqual([
+      '[region] view=672x492dp requested=720x540 card=640',
+    ]);
+  });
+
+  test('the same region laying out again does NOT log a second time', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    fireLayout(tree, 672, 492);
+    expect(regionLines()).toHaveLength(1);
+  });
+
+  test('a DIFFERENT region logs again (the doc-select grant may differ)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    fireLayout(tree, 1356, 1824);
+    expect(regionLines()).toEqual([
+      '[region] view=672x492dp requested=720x540 card=640',
+      '[region] view=1356x1824dp requested=720x540 card=640',
+    ]);
+  });
+
+  test('fractional RN layout values are rounded', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 671.4, 491.6);
+    expect(regionLines()).toEqual([
+      '[region] view=671x492dp requested=720x540 card=640',
+    ]);
+  });
+
+  test('a malformed native event neither throws nor logs', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    const onLayout = findLayoutTarget(tree).props.onLayout;
+    expect(() =>
+      act(() => {
+        onLayout({});
+        onLayout({nativeEvent: {}});
+        onLayout({nativeEvent: {layout: {width: 'x', height: 12}}});
+        onLayout({nativeEvent: {layout: {width: 12}}});
+      }),
+    ).not.toThrow();
+    expect(regionLines()).toHaveLength(0);
+  });
+
+  test('the probe also attaches in the recognizing and settings kinds', async () => {
+    setPopupActions(
+      fakeActions(async () => ({lang: 'en', omw: {synonyms: [], antonyms: []}})),
+    );
+    const tree = renderPopup();
+    act(() => showRecognizing());
+    fireLayout(tree, 672, 492);
+    // Settings mounts SettingsPanel, whose async effects must settle
+    // inside act.
+    await act(async () => showSettings());
+    await flush();
+    fireLayout(tree, 800, 600);
+    expect(regionLines()).toEqual([
+      '[region] view=672x492dp requested=720x540 card=640',
+      '[region] view=800x600dp requested=720x540 card=640',
+    ]);
+  });
+});

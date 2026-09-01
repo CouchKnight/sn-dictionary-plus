@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import type {LayoutChangeEvent} from 'react-native';
 import {PluginManager} from 'sn-plugin-lib';
 import {
   closeSettings,
@@ -135,6 +136,12 @@ export default function DefinitionPopup(): React.JSX.Element {
   // the recency gate rejects an old tool value left over from an earlier
   // gesture. It is also a ONE-SHOT: cleared after every press.
   const lastToolTypeRef = useRef<{tool: string; at: number} | null>(null);
+
+  // #37 — last logged region as "WxH", so the probe below fires once per
+  // DISTINCT region rather than once per layout. A ref, never state: a
+  // setState here would re-render and trigger a second layout pass for a
+  // value the component deliberately never reads. See handleBackdropLayout.
+  const loggedRegionRef = useRef<string | null>(null);
 
   // A new headword resets to the Definition tab and drops any cached
   // thesaurus (single-fetch is per-headword). EXCEPT when the result was
@@ -266,6 +273,44 @@ export default function DefinitionPopup(): React.JSX.Element {
     () => setFontSize(s => stepUp(s)),
     [],
   );
+
+  // #37 — region probe. The popup renders inside a firmware-granted
+  // overlay region, NOT the screen: both buttons register regionType:1
+  // (center dialog) at 720x540 (registerNoteLassoButton.ts:72-75,
+  // registerDocSelectButton.ts:60-63) and the SDK enum documents 2 =
+  // fullscreen (NativePluginManager.d.ts:59-65). Whether the firmware
+  // honours that request is UNVERIFIED, and it decides whether a
+  // percentage-sized "maximized" card actually gains anything. `backdrop`
+  // is flex:1 inside the region and onLayout reports its border box
+  // (padding included), so this measures the grant directly, in dp.
+  //
+  // Write-only: the measurement goes to the log and nowhere else. The
+  // component must never size itself from this number — the whole point
+  // of the percentage/flex geometry is that it needs no device numbers.
+  const handleBackdropLayout = useCallback((e: LayoutChangeEvent) => {
+    // nativeEvent crosses from native — validate at the boundary.
+    const layout = e?.nativeEvent?.layout;
+    if (
+      !layout ||
+      typeof layout.width !== 'number' ||
+      typeof layout.height !== 'number'
+    ) {
+      return;
+    }
+    const key = `${Math.round(layout.width)}x${Math.round(layout.height)}`;
+    // Log once per distinct region: quiet in steady state, but still
+    // catches the NOTE-lasso and DOC-selection buttons being granted
+    // different regions (they are separate registerButton calls).
+    if (loggedRegionRef.current === key) {
+      return;
+    }
+    loggedRegionRef.current = key;
+    // console.log, NOT warn/error: the Supernote RN host filters
+    // console.warn / console.error out of logcat (index.js:76-77).
+    // Single-bracket tag matches the repo convention ([discovery],
+    // [settings], [import], [provision]).
+    console.log(`[region] view=${key}dp requested=720x540 card=640`);
+  }, []);
   const handleDefinitionTab = useCallback(() => {
     setTab('definition');
     setCopyStatus('idle');
@@ -353,7 +398,7 @@ export default function DefinitionPopup(): React.JSX.Element {
     // body text to scale. They reappear when the result kind takes
     // over.
     return (
-      <View style={styles.backdrop}>
+      <View style={styles.backdrop} onLayout={handleBackdropLayout}>
         <View style={styles.card}>
           <Text style={styles.recognizing}>{t('popup.recognizing')}</Text>
           {state.ocrLabel ? (
@@ -376,7 +421,7 @@ export default function DefinitionPopup(): React.JSX.Element {
     // SettingsPanel owns the card and the Back button (which restores the
     // stashed result via closeSettings).
     return (
-      <View style={styles.backdrop}>
+      <View style={styles.backdrop} onLayout={handleBackdropLayout}>
         {renderDismissLayer(closeSettings)}
         <SettingsPanel resume={state.resume} />
       </View>
@@ -444,7 +489,7 @@ export default function DefinitionPopup(): React.JSX.Element {
   const canGrow = fontSize !== 'L';
 
   return (
-    <View style={styles.backdrop}>
+    <View style={styles.backdrop} onLayout={handleBackdropLayout}>
       {renderDismissLayer(handleClose)}
       <View style={styles.card}>
         <View style={styles.headerRow}>
