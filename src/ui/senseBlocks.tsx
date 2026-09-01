@@ -3,21 +3,15 @@
 // from SourceSection's WordNet branch.
 //
 // fontScale is the multiplier the popup's A−/A+ buttons set on the
-// definition body text (1.0 / 1.25 / 1.5 for S / M / L). Chrome
+// definition body text (1.0 to 2.0, for S / M / L / XL / 2X). Chrome
 // (badge sizes, paddings) stays at its base size; only readable body
 // text — definition, examples, sense index, synonym list — scales.
 
 import React from 'react';
 import {Text, View} from 'react-native';
 import {labelForPos, type WordNetSense} from './wordnetFormatter';
-import {popupStyles as styles} from './popupStyles';
+import {popupStyles as styles, scaled, scaleText} from './popupStyles';
 import {t} from '../i18n/i18n';
-
-// All callers pull fontSize off StyleSheet.create entries where the
-// number is always defined; no need for an undefined branch.
-const scaledFont = (base: number, scale: number): {fontSize: number} => ({
-  fontSize: base * scale,
-});
 
 type SenseListProps = {senses: WordNetSense[]; fontScale: number};
 
@@ -53,11 +47,11 @@ export const SenseBlock = ({
       {sense.pos ? (
         <Text style={styles.posBadge}>{labelForPos(sense.pos)}</Text>
       ) : null}
-      <Text style={[styles.senseIndex, scaledFont(styles.senseIndex.fontSize, fontScale)]}>
+      <Text style={scaled(styles.senseIndex, fontScale)}>
         {`${sense.index}.`}
       </Text>
     </View>
-    <Text style={[styles.definition, scaledFont(styles.definition.fontSize, fontScale)]}>
+    <Text style={scaled(styles.definition, fontScale)}>
       {sense.definition}
     </Text>
     {sense.examples.length > 0 ? (
@@ -65,16 +59,20 @@ export const SenseBlock = ({
         {sense.examples.map((ex, j) => (
           <Text
             key={j}
-            style={[styles.example, scaledFont(styles.example.fontSize, fontScale)]}>
+            style={scaled(styles.example, fontScale)}>
             “{ex}”
           </Text>
         ))}
       </View>
     ) : null}
     {sense.synonyms.length > 0 ? (
-      <Text style={[styles.synonyms, scaledFont(styles.synonyms.fontSize, fontScale)]}>
+      <Text style={scaled(styles.synonyms, fontScale)}>
+        {/* Not scaled(): this renders `synonymsLabel` — weight and
+            colour, no size of its own — at `synonyms`' size, so the
+            registered style and the scaled one deliberately differ.
+            The scaled entry must stay LAST here. */}
         <Text
-          style={[styles.synonymsLabel, scaledFont(styles.synonyms.fontSize, fontScale)]}>
+          style={[styles.synonymsLabel, scaleText(styles.synonyms, fontScale)]}>
           {`${t('popup.synonyms')}: `}
         </Text>
         {sense.synonyms.join(', ')}

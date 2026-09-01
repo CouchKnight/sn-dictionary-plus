@@ -30,6 +30,23 @@ export const popupStyles = StyleSheet.create({
     borderColor: '#000000',
     padding: 20,
   },
+  // #37 — the Maximized card geometry. Layered OVER `card` (never
+  // instead of it) so border/radius/padding/background stay defined once.
+  // width:'100%' overrides card's fixed 640 and flex:1 claims the
+  // backdrop's full remaining height. maxHeight:'100%' is LOAD-BEARING:
+  // without it, card's maxHeight:520 clamps the flexed height and the
+  // card grows no taller than today.
+  // NO pixel dimensions — the card fills whatever region the firmware
+  // grants, so Nomad (~1404x1872) and Manta (~1920x2560) both work with
+  // no device-density lookup and no Dimensions mock in the test suite.
+  // The backdrop keeps its padding:24, so a 24dp frame of page stays
+  // visible around a "maximized" card — window-manager maximize, not
+  // fullscreen (the alioth9 comment on #37).
+  cardMaximized: {
+    width: '100%',
+    maxHeight: '100%',
+    flex: 1,
+  },
   word: {
     fontSize: 28,
     fontWeight: '700',
@@ -53,6 +70,21 @@ export const popupStyles = StyleSheet.create({
   body: {
     marginTop: 12,
     marginBottom: 16,
+    // #37 — this is a ScrollView, and RN's ScrollView already composes
+    // baseVertical = {flexGrow:1, flexShrink:1, overflow:'scroll'} UNDER
+    // props.style (ScrollView.js:1734,1842). These two lines restate that
+    // default so it is visible at the call site and so the guard test has
+    // something to pin; they change nothing on their own.
+    //
+    // What DOES matter: never write `flex: 1` here. props.style composes OVER
+    // baseVertical, so `flex: 1` would replace all three (flexBasis:0%), and
+    // inside the Normal card — auto height under maxHeight:520, so Yoga takes
+    // the FitContent path and forces remainingFreeSpace to 0 — a basis-0 child
+    // grows by nothing and the definition renders at height 0. Verified in
+    // Yoga CalculateLayout.cpp:1518-1541. The guard test pins `flex` and
+    // `flexBasis` undefined.
+    flexGrow: 1,
+    flexShrink: 1,
   },
   section: {
     paddingTop: 4,
@@ -227,7 +259,7 @@ export const popupStyles = StyleSheet.create({
   // Settings gear button — same 32×32 circular bordered touch target as
   // the font-size −/+ glyph buttons (crisp on e-ink; no emoji, no PNG).
   // marginLeft separates it from the stepper; it is the rightmost element
-  // so the header reads [headword] … [−][A][+][⚙] — gear in the corner.
+  // so the header reads [headword] … [−][A][+][□] [⚙] — gear in the corner.
   gearButton: {
     width: 32,
     height: 32,
@@ -341,6 +373,11 @@ export const popupStyles = StyleSheet.create({
   // Scrollable settings body, below the fixed title + Back header.
   settingsBody: {
     marginTop: 4,
+    // #37 — also a ScrollView, so as with `body` these restate RN's own
+    // baseVertical default and are inert. See the note there for the trap
+    // they mark: `flex: 1` here would collapse the panel body to height 0.
+    flexGrow: 1,
+    flexShrink: 1,
   },
   // One dictionary row: a tappable checkbox+name on the left, the reorder /
   // remove controls on the right.
@@ -488,8 +525,10 @@ export const popupStyles = StyleSheet.create({
     borderRadius: 4,
   },
   // Body-text size selector: three circular elements in a row,
-  // ( − )( A )( + ). The outer two are Pressables; the middle is a
-  // static "A" indicator that anchors the meaning to "text size".
+  // ( − )( S )( + ). The outer two are Pressables; the middle shows the
+  // CURRENT level (S / M / L / XL / 2X) — with five levels the greyed
+  // ends no longer identify which one you are on. The − and + glyphs
+  // carry the "text size" anchor the old static "A" used to.
   // Same paradigm as every browser zoom control, PDF / image
   // viewer, etc. — universally recognised, direction unambiguous.
   // At a bound the unusable button greys out instead of hiding so
@@ -514,6 +553,11 @@ export const popupStyles = StyleSheet.create({
   // The middle indicator is structurally a Text with no border — it
   // sits between the two Pressables but isn't itself one. Keeps the
   // touch targets unambiguous (only − and + are pressable).
+  // It carries the current level label, which is bounded to TWO
+  // capitals so it fits: at fontSize 18 two caps measure ~21dp inside
+  // this 32dp box, while three ("XXL") measure ~32dp and would fill it
+  // exactly and spill toward the + circle. That is why the top level
+  // renders as "2X".
   fontSizeIndicator: {
     width: 32,
     height: 32,
@@ -698,3 +742,45 @@ export const popupStyles = StyleSheet.create({
     color: '#000000',
   },
 });
+
+// Body text the user can enlarge with A− / A+. `fontSize` alone is NOT
+// enough: every scalable body style also carries a fixed `lineHeight`
+// (definition 24, example 22, synonyms 20), and Roboto's line box is
+// 1.171em — so at L the definition is 17*1.5 = 25.5dp of type inside a
+// 24dp line box and consecutive lines collide. Scaling both keeps the
+// leading ratio constant at every level.
+//
+// The `lineHeight === undefined` branch is LOAD-BEARING, not a nicety:
+// returning `{lineHeight: undefined}` would be composed OVER the base
+// style by StyleSheet.flatten (and by Object.assign in the test's
+// `flatten` helper) and would ERASE a lineHeight the base did define.
+// Emit the key only when there is a value for it.
+//
+// Takes the STYLE OBJECT rather than a bare number, which is what makes
+// fontSize and lineHeight travel together and removes the
+// `styles.X.fontSize` repetition from every call site.
+//
+// Prefer `scaled` below over calling this directly: RN composes a style
+// array left-to-right, so a scaled result placed anywhere but LAST is
+// silently overridden by the base and that element quietly stops
+// scaling — with no error, and (as a mutation sweep showed) with the
+// whole suite still green. `scaled` owns the composition so there is no
+// order left to get wrong.
+type ScalableText = {fontSize: number; lineHeight?: number};
+
+export const scaleText = (base: ScalableText, scale: number): ScalableText =>
+  base.lineHeight === undefined
+    ? {fontSize: base.fontSize * scale}
+    : {fontSize: base.fontSize * scale, lineHeight: base.lineHeight * scale};
+
+// The style array for a scalable text element: the base, then its scaled
+// sizes, in the only order that works. Use this at every call site whose
+// registered style IS the style being scaled — which is all of them
+// except the two synonym LABELS, where the element deliberately renders
+// `synonymsLabel` (weight + colour, no size of its own) at `synonyms`'
+// size; those two keep an explicit array and are covered by tests
+// instead.
+export const scaled = (base: ScalableText, scale: number): ScalableText[] => [
+  base,
+  scaleText(base, scale),
+];

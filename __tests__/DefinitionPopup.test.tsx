@@ -69,6 +69,10 @@ import type {
 import {copyToClipboard} from '../src/native/clipboard';
 import {getPenToolObserver} from '../src/native/penToolObserver';
 import {htmlToPlainText} from '../src/ui/htmlToPlainText';
+// StyleSheet.create is identity-mocked above, so these are the very
+// objects the rendered tree carries — reference-comparable.
+import {popupStyles, scaleText} from '../src/ui/popupStyles';
+import {FONT_SIZES} from '../src/ui/DefinitionPopup';
 
 const closePluginView = PluginManager.closePluginView as jest.Mock;
 const copyMock = copyToClipboard as jest.Mock;
@@ -715,11 +719,14 @@ describe('DefinitionPopup', () => {
       const plus = findFontBtn(tree, 'Increase text size');
       expect(minus.props.disabled).toBe(true);
       expect(plus.props.disabled).toBe(false);
-      // All three glyphs always rendered — minus, A indicator, plus.
+      // All three glyphs always rendered — minus, level indicator, plus.
+      // The middle slot now names the level rather than showing a static
+      // 'A', so assert it via the slot and not via collectText: 'L' is a
+      // substring of 'XL', so a toContain would pass vacuously.
       const text = collectText(tree);
       expect(text).toContain('−');
-      expect(text).toContain('A');
       expect(text).toContain('+');
+      expect(findLevelLabel(tree)).toBe('S');
     });
 
     test('M: both buttons active, neither greyed', () => {
@@ -736,12 +743,15 @@ describe('DefinitionPopup', () => {
       expect(plus.props.disabled).toBe(false);
     });
 
-    test('L: plus is greyed and disabled; minus is active', () => {
+    test('2X (the top): plus is greyed and disabled; minus is active', () => {
       const tree = renderPopup();
       act(() => {
         showDefinition(found('WordNet', 'hello', 'a greeting'));
       });
+      // Four presses to the top now, not two — S M L XL 2X.
       act(() => {
+        findFontBtn(tree, 'Increase text size').props.onPress();
+        findFontBtn(tree, 'Increase text size').props.onPress();
         findFontBtn(tree, 'Increase text size').props.onPress();
         findFontBtn(tree, 'Increase text size').props.onPress();
       });
@@ -749,23 +759,28 @@ describe('DefinitionPopup', () => {
       const plus = findFontBtn(tree, 'Increase text size');
       expect(minus.props.disabled).toBe(false);
       expect(plus.props.disabled).toBe(true);
+      expect(findLevelLabel(tree)).toBe('2X');
     });
 
-    test('round-trip: pressing plus twice then minus twice returns to S state', () => {
+    test('round-trip: four up then four down returns to the S state', () => {
       const tree = renderPopup();
       act(() => {
         showDefinition(found('WordNet', 'hello', 'a greeting'));
       });
       act(() => {
-        findFontBtn(tree, 'Increase text size').props.onPress();
-        findFontBtn(tree, 'Increase text size').props.onPress();
+        for (let i = 0; i < 4; i++) {
+          findFontBtn(tree, 'Increase text size').props.onPress();
+        }
       });
+      expect(findLevelLabel(tree)).toBe('2X');
       act(() => {
-        findFontBtn(tree, 'Decrease text size').props.onPress();
-        findFontBtn(tree, 'Decrease text size').props.onPress();
+        for (let i = 0; i < 4; i++) {
+          findFontBtn(tree, 'Decrease text size').props.onPress();
+        }
       });
       expect(findFontBtn(tree, 'Decrease text size').props.disabled).toBe(true);
       expect(findFontBtn(tree, 'Increase text size').props.disabled).toBe(false);
+      expect(findLevelLabel(tree)).toBe('S');
     });
 
     test('font-size controls are NOT rendered during the recognizing kind', () => {
@@ -775,6 +790,12 @@ describe('DefinitionPopup', () => {
       });
       expect(tryFindFontBtn(tree, 'Decrease text size')).toHaveLength(0);
       expect(tryFindFontBtn(tree, 'Increase text size')).toHaveLength(0);
+      // ...and neither is the level indicator between them.
+      expect(
+        tree.root.findAll(
+          n => n.props.style === popupStyles.fontSizeIndicator,
+        ),
+      ).toHaveLength(0);
     });
 
     test('fontScale propagates to the definition body — Text fontSize grows on A+', () => {
@@ -2935,5 +2956,980 @@ describe('DefinitionPopup — pen-only tap-outside-to-close (#32)', () => {
     act(() => closeBtn.props.onPress());
     expect(collectText(tree)).toBe('');
     expect(closePluginView).toHaveBeenCalledTimes(1);
+  });
+});
+
+// --- Region probe (#37 FR0) ----------------------------------------
+//
+// The popup renders inside a firmware-granted overlay region, not the
+// screen, and whether the firmware honours the registered regionType /
+// 720x540 is unverified on-device. The backdrop's onLayout reports that
+// grant; these tests pin the emitted format, the once-per-distinct-region
+// latch, and the boundary guard on the native event.
+
+// The backdrop is the only node carrying onLayout.
+const findLayoutTarget = (tree: ReactTestRenderer) =>
+  tree.root.findAll(n => typeof n.props.onLayout === 'function')[0];
+
+const fireLayout = (
+  tree: ReactTestRenderer,
+  width: number,
+  height: number,
+): void => {
+  act(() => {
+    findLayoutTarget(tree).props.onLayout({
+      nativeEvent: {layout: {x: 0, y: 0, width, height}},
+    });
+  });
+};
+
+describe('DefinitionPopup — granted-region probe', () => {
+  let logSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  // MUST restore, or the leaked spy swallows output for the rest of the
+  // suite.
+  afterEach(() => {
+    logSpy.mockRestore();
+  });
+
+  // Only the probe's own lines — the popup shares console.log with the
+  // rest of the app's [tag] logging.
+  const regionLines = (): string[] =>
+    logSpy.mock.calls
+      .map(args => String(args[0]))
+      .filter(line => line.startsWith('[region]'));
+
+  test('logs the measured region, in dp, with the request for comparison', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    expect(regionLines()).toEqual([
+      '[region] view=672x492dp requested=720x540 card=640',
+    ]);
+  });
+
+  test('the same region laying out again does NOT log a second time', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    fireLayout(tree, 672, 492);
+    expect(regionLines()).toHaveLength(1);
+  });
+
+  test('a DIFFERENT region logs again (the doc-select grant may differ)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    fireLayout(tree, 1356, 1824);
+    expect(regionLines()).toEqual([
+      '[region] view=672x492dp requested=720x540 card=640',
+      '[region] view=1356x1824dp requested=720x540 card=640',
+    ]);
+  });
+
+  test('fractional RN layout values are rounded', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 671.4, 491.6);
+    expect(regionLines()).toEqual([
+      '[region] view=671x492dp requested=720x540 card=640',
+    ]);
+  });
+
+  test('a malformed native event neither throws nor logs', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    const onLayout = findLayoutTarget(tree).props.onLayout;
+    expect(() =>
+      act(() => {
+        onLayout({});
+        onLayout({nativeEvent: {}});
+        onLayout({nativeEvent: {layout: {width: 'x', height: 12}}});
+        onLayout({nativeEvent: {layout: {width: 12}}});
+      }),
+    ).not.toThrow();
+    expect(regionLines()).toHaveLength(0);
+  });
+
+  test('the probe also attaches in the recognizing and settings kinds', async () => {
+    setPopupActions(
+      fakeActions(async () => ({lang: 'en', omw: {synonyms: [], antonyms: []}})),
+    );
+    const tree = renderPopup();
+    act(() => showRecognizing());
+    fireLayout(tree, 672, 492);
+    // Settings mounts SettingsPanel, whose async effects must settle
+    // inside act.
+    await act(async () => showSettings());
+    await flush();
+    fireLayout(tree, 800, 600);
+    expect(regionLines()).toEqual([
+      '[region] view=672x492dp requested=720x540 card=640',
+      '[region] view=800x600dp requested=720x540 card=640',
+    ]);
+  });
+
+  test('hide -> show does not re-log the same region (the ref outlives the branch)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    // The hidden state renders no backdrop, so nothing can leak a 0x0
+    // line; on re-show the backdrop lays out again at the same size, but
+    // only the BRANCH remounted — the component, and so the latch, did
+    // not.
+    act(() => hideDefinition());
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    expect(regionLines()).toHaveLength(1);
+  });
+
+  test('toggling maximize emits NO second [region] line', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    fireLayout(tree, 672, 492);
+    // The backdrop's own size does not change when the card resizes, and
+    // the handler never setStates — a toggle costs no extra probe work.
+    act(() => findByLabel(tree, 'Maximize window')[0].props.onPress());
+    act(() => findByLabel(tree, 'Restore window')[0].props.onPress());
+    expect(regionLines()).toHaveLength(1);
+  });
+});
+
+// --- Maximize toggle (#37 FR2) -------------------------------------
+//
+// NOTE ON WHAT THESE CAN PROVE: react-native is mocked to host strings
+// with StyleSheet.create as identity, so Yoga never runs. These pin that
+// the right style OBJECTS are attached to the right elements — never that
+// the resolved layout is correct. On-device verification is separate.
+
+const flattenStyle = (s: unknown): Record<string, unknown> => {
+  if (Array.isArray(s)) {
+    return Object.assign({}, ...s.map(flattenStyle));
+  }
+  if (s && typeof s === 'object') {
+    return s as Record<string, unknown>;
+  }
+  return {};
+};
+
+// The card is the only white-backed View — in the result and recognizing
+// kinds it is DefinitionPopup's, in the settings kind it is
+// SettingsPanel's own.
+const findCardStyle = (tree: ReactTestRenderer): Record<string, unknown> => {
+  const card = tree.root.findAll(
+    n =>
+      n.type === 'View' &&
+      flattenStyle(n.props.style).backgroundColor === '#ffffff',
+  );
+  expect(card).toHaveLength(1);
+  return flattenStyle(card[0].props.style);
+};
+
+// The scrolling body. Only one ScrollView renders in the result kind.
+const findBodyStyle = (tree: ReactTestRenderer): Record<string, unknown> =>
+  flattenStyle(tree.root.findAll(n => n.type === 'ScrollView')[0].props.style);
+
+const tryFindMaxBtn = (
+  tree: ReactTestRenderer,
+  label: 'Maximize window' | 'Restore window',
+) =>
+  tree.root.findAllByProps({
+    accessibilityRole: 'button',
+    accessibilityLabel: label,
+  });
+
+const findMaxBtn = (
+  tree: ReactTestRenderer,
+  label: 'Maximize window' | 'Restore window',
+) => tryFindMaxBtn(tree, label)[0];
+
+const maximize = (tree: ReactTestRenderer): void =>
+  act(() => findMaxBtn(tree, 'Maximize window').props.onPress());
+
+describe('DefinitionPopup — maximize toggle', () => {
+  test('the result header renders the toggle, in the Normal state', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    expect(tryFindMaxBtn(tree, 'Maximize window')).toHaveLength(1);
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(0);
+    expect(collectText(tree)).toContain('□');
+  });
+
+  test('pressing it flips the label and the glyph (the state flipped)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    expect(tryFindMaxBtn(tree, 'Maximize window')).toHaveLength(0);
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+    expect(collectText(tree)).toContain('▣');
+  });
+
+  test('round-trip: pressing again restores (a true boolean, not a latch)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    act(() => findMaxBtn(tree, 'Restore window').props.onPress());
+    expect(tryFindMaxBtn(tree, 'Maximize window')).toHaveLength(1);
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(0);
+  });
+
+  test('the toggle is NOT rendered during the recognizing kind', () => {
+    // Same rule as the font stepper: nothing to size, and the state is
+    // transient.
+    const tree = renderPopup();
+    act(() => showRecognizing());
+    expect(tryFindMaxBtn(tree, 'Maximize window')).toHaveLength(0);
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(0);
+  });
+
+  test('the toggle renders in the not-found result state too', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(notFound('zzz')));
+    expect(tryFindMaxBtn(tree, 'Maximize window')).toHaveLength(1);
+  });
+
+  test('the Normal card is unregressed — still the fixed 640 x 520', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    expect(findCardStyle(tree)).toEqual(
+      expect.objectContaining({width: 640, maxHeight: 520}),
+    );
+  });
+
+  test('maximized layers cardMaximized over card (incl. maxHeight 100%)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    // maxHeight:'100%' is load-bearing — without it card's maxHeight:520
+    // clamps the flexed height and the card grows wider but not taller.
+    expect(findCardStyle(tree)).toEqual(
+      expect.objectContaining({
+        width: '100%',
+        maxHeight: '100%',
+        flex: 1,
+      }),
+    );
+  });
+
+  test('the body ScrollView never carries a zero flex basis, in EITHER size', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    // THE load-bearing assertion in this suite. props.style composes OVER
+    // ScrollView's own baseVertical, so anything that lands a zero basis
+    // here — `flex: 1`, `flex: '1 1 0%'`, or a bare flexBasis: 0 / '0%' —
+    // makes the Normal card render the definition at height 0. Pinning
+    // flexGrow/flexShrink alone would NOT catch that: it is the absence of
+    // a basis that matters, so assert both shorthand and longhand out.
+    expect(findBodyStyle(tree)).toEqual(
+      expect.objectContaining({flexGrow: 1, flexShrink: 1}),
+    );
+    expect(findBodyStyle(tree).flex).toBeUndefined();
+    expect(findBodyStyle(tree).flexBasis).toBeUndefined();
+    maximize(tree);
+    expect(findBodyStyle(tree)).toEqual(
+      expect.objectContaining({flexGrow: 1, flexShrink: 1}),
+    );
+    expect(findBodyStyle(tree).flex).toBeUndefined();
+    expect(findBodyStyle(tree).flexBasis).toBeUndefined();
+  });
+
+  test('the settings body carries the same no-zero-basis guard', async () => {
+    // SettingsPanel's own ScrollView is the second place the trap exists,
+    // and it had no guard at all. Same rule, same reason.
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    await act(async () => pressLabel(tree, 'Settings'));
+    await flush();
+    const body = findBodyStyle(tree);
+    // marginTop:4 identifies this as settingsBody rather than a nested
+    // ScrollView further down the panel.
+    expect(body).toEqual(
+      expect.objectContaining({marginTop: 4, flexGrow: 1, flexShrink: 1}),
+    );
+    expect(body.flex).toBeUndefined();
+    expect(body.flexBasis).toBeUndefined();
+  });
+
+  test('the recognizing card carries the maximized size (no frame snap)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    act(() => showRecognizing());
+    // The control is hidden here, but the geometry is carried: otherwise
+    // a second lookup renders small then large — two full repaints.
+    expect(findCardStyle(tree)).toEqual(expect.objectContaining({flex: 1}));
+  });
+
+  test('the state survives hide -> show (session-only, no reset on close)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    act(() => hideDefinition());
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+  });
+
+  test('a NEW headword does not reset it (the reset effects skip it)', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    act(() => showDefinition(found('WordNet', 'world', 'the earth')));
+    expect(collectText(tree)).toContain('the earth');
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+  });
+
+  test('Settings opens at the same size, and Back returns still maximized', async () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    await act(async () => pressLabel(tree, 'Settings'));
+    await flush();
+    expect(currentKind()).toBe('settings');
+    // SettingsPanel owns its own card; the prop must reach it.
+    expect(findCardStyle(tree)).toEqual(expect.objectContaining({flex: 1}));
+    await act(async () => pressLabel(tree, 'Back'));
+    await flush();
+    expect(currentKind()).toBe('result');
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+    expect(findCardStyle(tree)).toEqual(expect.objectContaining({flex: 1}));
+  });
+
+  test('Settings stays Normal-sized when the popup is not maximized', async () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    await act(async () => pressLabel(tree, 'Settings'));
+    await flush();
+    expect(findCardStyle(tree)).toEqual(
+      expect.objectContaining({width: 640, maxHeight: 520}),
+    );
+    expect(findCardStyle(tree).flex).toBeUndefined();
+  });
+
+  test('toggling mid-stream keeps the pending sections intact', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(loading('hello', ['WordNet', 'User'])));
+    maximize(tree);
+    const text = collectText(tree);
+    expect(text).toContain('Loading…');
+    expect(text).toContain('WordNet');
+    expect(text).toContain('User');
+  });
+
+  test('toggling does not remount the OCR field (typed text survives)', () => {
+    const tree = renderPopup();
+    act(() =>
+      showDefinition(found('WordNet', 'rain', 'water'), 'OCR: rain', true),
+    );
+    enterEdit(tree);
+    act(() => findByLabel(tree, 'OCR')[0].props.onChangeText('helo'));
+    maximize(tree);
+    // A conditional wrapper around the card would remount the TextInput,
+    // losing the correction and re-firing autoFocus.
+    expect(findByLabel(tree, 'OCR')[0].props.value).toBe('helo');
+  });
+
+  test('toggling does not remount the add-definition form', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(notFound('zzz')));
+    act(() => pressLabel(tree, 'Add definition'));
+    act(() => findByLabel(tree, 'Definition')[0].props.onChangeText('my def'));
+    maximize(tree);
+    expect(findByLabel(tree, 'Definition')).toHaveLength(1);
+    expect(findByLabel(tree, 'Definition')[0].props.value).toBe('my def');
+  });
+
+  test('saving a new definition still works while maximized', async () => {
+    // The form rendering large is not the same as it SUBMITTING while
+    // large — the toggle must not disturb the save path.
+    const addUserEntry = jest.fn(async () => undefined);
+    const relookup = jest.fn(async () => undefined);
+    setPopupActions(addActions(addUserEntry, relookup));
+    const tree = renderPopup();
+    act(() => showDefinition(notFound('photon')));
+    maximize(tree);
+    act(() => pressLabel(tree, 'Add definition'));
+    act(() =>
+      findByLabel(tree, 'Definition')[0].props.onChangeText('a light quantum'),
+    );
+    await act(async () => {
+      findByLabel(tree, 'Save')[0].props.onPress();
+      await Promise.resolve();
+    });
+    expect(addUserEntry).toHaveBeenCalledWith('photon', 'a light quantum');
+    expect(relookup).toHaveBeenCalledWith('photon');
+  });
+
+  test('an OCR edit cancelled by a new result stays maximized, in display mode', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(notFound('helo'), 'OCR: helo', true));
+    maximize(tree);
+    enterEdit(tree);
+    expect(findByLabel(tree, 'OCR')).toHaveLength(1);
+    // A new result arrives (the relookup landed) — editing resets to
+    // display mode, but the window size is NOT part of that reset.
+    act(() =>
+      showDefinition(found('WordNet', 'hello', 'a greeting'), 'OCR: hello', true),
+    );
+    expect(findByLabel(tree, 'OCR')).toHaveLength(0);
+    expect(findByLabel(tree, 'Edit recognized text')).toHaveLength(1);
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+    expect(findCardStyle(tree)).toEqual(expect.objectContaining({flex: 1}));
+  });
+});
+
+// --- #32 pen-dismiss x #37 maximize -------------------------------------
+//
+// The two features were tested in complete isolation. The dismiss layer is
+// StyleSheet.absoluteFill — position:absolute, so it is out of flow and the
+// card resizing cannot move or reorder it, and Yoga positions an absolute
+// child against the parent's PADDING box, so the 24dp ring left around a
+// maximized card is inside the layer, not outside it. That is the claim
+// these two pin.
+
+describe('DefinitionPopup — pen-dismiss while maximized (#32 x #37)', () => {
+  test('a stylus tap outside still closes when maximized', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    expect(hasDismissLayer(tree)).toBe(true);
+    act(() => fireToolDown(tree, 'stylus'));
+    act(() => pressBackdrop(tree));
+    expect(collectText(tree)).toBe('');
+    expect(closePluginView).toHaveBeenCalledTimes(1);
+  });
+
+  test('a stylus tap outside the MAXIMIZED settings panel goes Back, not close', async () => {
+    setPopupActions(
+      fakeActions(async () => ({lang: 'en', omw: {synonyms: [], antonyms: []}})),
+    );
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    maximize(tree);
+    await act(async () => pressLabel(tree, 'Settings'));
+    await flush();
+    expect(hasDismissLayer(tree)).toBe(true);
+    act(() => fireToolDown(tree, 'stylus'));
+    await act(async () => pressBackdrop(tree));
+    await flush();
+    // Non-destructive Back, exactly as at the Normal size: the overlay
+    // never closed, and the restored result is still maximized.
+    expect(currentKind()).toBe('result');
+    expect(closePluginView).not.toHaveBeenCalled();
+    expect(tryFindMaxBtn(tree, 'Restore window')).toHaveLength(1);
+  });
+});
+
+// --- Body-text scaling: fontSize AND lineHeight -------------------------
+//
+// Every scalable body style carries a FIXED lineHeight (definition 24,
+// example 22, synonyms 20). Scaling only fontSize meant that at L the
+// definition was 25.5dp of type inside a 24dp line box — Roboto's line
+// box is 1.171em, so consecutive lines collided. These pin that both
+// numbers now move together, which keeps the leading ratio constant at
+// every level.
+//
+// (Yoga never runs here and no text is measured — these prove the right
+// numbers reach the right styles, not that the result looks right.)
+
+// Press A+ n times.
+const bump = (tree: ReactTestRenderer, n: number): void => {
+  act(() => {
+    for (let i = 0; i < n; i++) {
+      findByLabel(tree, 'Increase text size')[0].props.onPress();
+    }
+  });
+};
+
+// The flattened style of the first Text whose style ARRAY includes the
+// given base style object — i.e. what that element actually renders at.
+const scaledOf = (
+  tree: ReactTestRenderer,
+  base: object,
+): {fontSize?: number; lineHeight?: number} => {
+  const node = tree.root.findAll(
+    n => Array.isArray(n.props.style) && n.props.style.includes(base),
+  )[0];
+  return Object.assign(
+    {},
+    ...(node.props.style as unknown[]).filter(s => s && typeof s === 'object'),
+  );
+};
+
+// A WordNet body carrying both an example and a synonym list, so one
+// fixture exercises every Tier-1 style in senseBlocks.
+const aiEntry =
+  'AI\n' +
+  '     n 1: an agency of the United States Army responsible for ' +
+  'providing intelligence [syn: {Army Intelligence}]\n' +
+  '     2: the branch of computer science that deal with writing ' +
+  'computer programs that can solve problems creatively; ' +
+  '"workers in AI hope to imitate intelligence" ' +
+  '[syn: {artificial intelligence}]';
+
+describe('scaleText', () => {
+  test('scales fontSize and lineHeight together when the base has both', () => {
+    expect(scaleText(popupStyles.definition, 2)).toEqual({
+      fontSize: 34,
+      lineHeight: 48,
+    });
+  });
+
+  test('OMITS the lineHeight key entirely when the base has none', () => {
+    // Load-bearing: returning {lineHeight: undefined} would compose OVER
+    // the base under StyleSheet.flatten (and under the Object.assign in
+    // `scaledOf` above) and ERASE a lineHeight the base did define.
+    const result = scaleText(popupStyles.phonetic, 2);
+    expect(result).toEqual({fontSize: 32});
+    expect('lineHeight' in result).toBe(false);
+  });
+
+  test('a scale of 1 is the identity on both numbers', () => {
+    expect(scaleText(popupStyles.definition, 1)).toEqual({
+      fontSize: 17,
+      lineHeight: 24,
+    });
+  });
+});
+
+describe('DefinitionPopup — lineHeight scales with the body font size', () => {
+  // [S, M, L, XL, 2X]
+  const SCALES = [1, 1.25, 1.5, 1.75, 2];
+
+  test('definition: fontSize and lineHeight both scale, at every level', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    SCALES.forEach((scale, k) => {
+      const tree2 = renderPopup();
+      act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+      bump(tree2, k);
+      expect(scaledOf(tree2, popupStyles.definition)).toEqual(
+        expect.objectContaining({fontSize: 17 * scale, lineHeight: 24 * scale}),
+      );
+    });
+    expect(scaledOf(tree, popupStyles.definition).lineHeight).toBe(24);
+  });
+
+  test('the leading RATIO is invariant across levels (the actual property)', () => {
+    // Stronger than five magic numbers: whatever the scale table says,
+    // lineHeight/fontSize must never drift, because that ratio is what
+    // stops lines colliding.
+    SCALES.forEach((_scale, k) => {
+      const tree = renderPopup();
+      act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+      bump(tree, k);
+      const {fontSize, lineHeight} = scaledOf(tree, popupStyles.definition);
+      expect(lineHeight! / fontSize!).toBeCloseTo(24 / 17, 10);
+    });
+  });
+
+  test('example and synonyms scale their lineHeight too (senseBlocks)', () => {
+    SCALES.forEach((scale, k) => {
+      const tree = renderPopup();
+      act(() => showDefinition(found('WordNet', 'AI', aiEntry, 'wordnet')));
+      bump(tree, k);
+      expect(scaledOf(tree, popupStyles.example)).toEqual(
+        expect.objectContaining({fontSize: 15 * scale, lineHeight: 22 * scale}),
+      );
+      expect(scaledOf(tree, popupStyles.synonyms)).toEqual(
+        expect.objectContaining({fontSize: 14 * scale, lineHeight: 20 * scale}),
+      );
+    });
+  });
+
+  test('the synonyms LABEL borrows synonyms sizing — never NaN', () => {
+    // synonymsLabel has no fontSize of its own; scaling it directly
+    // would yield NaN, which Android renders as invisible text.
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'AI', aiEntry, 'wordnet')));
+    bump(tree, 2);
+    const label = scaledOf(tree, popupStyles.synonymsLabel);
+    expect(label.fontSize).toBe(21);
+    expect(Number.isNaN(label.fontSize)).toBe(false);
+  });
+
+  test('thesaurusList scales its lineHeight (DefinitionPopup call site)', async () => {
+    setPopupActions(
+      fakeActions(async () => ({
+        lang: 'en',
+        omw: {synonyms: ['glad'], antonyms: ['sad']},
+      })),
+    );
+    const tree = renderPopup();
+    act(() => showDefinition(wordnetHit('happy', 'feeling joy')));
+    await act(async () =>
+      tree.root
+        .findAll(
+          n => n.props.accessibilityLabel === 'Thesaurus' && n.props.onPress,
+        )[0]
+        .props.onPress(),
+    );
+    await flush();
+    bump(tree, 2);
+    expect(scaledOf(tree, popupStyles.thesaurusList)).toEqual(
+      expect.objectContaining({fontSize: 25.5, lineHeight: 36}),
+    );
+  });
+
+  test('phonetic scales fontSize but gains NO lineHeight', () => {
+    // It has none at base; RN derives the line box from the font and
+    // grows it correctly. Inventing one here would clip the glyphs.
+    const tree = renderPopup();
+    act(() =>
+      showDefinition({
+        queriedFor: 'hello',
+        hits: [
+          {
+            source: 'WordNet',
+            entry: {
+              word: 'hello',
+              definition: 'a greeting',
+              format: 'plain',
+              phonetic: 'huh-LOH',
+            },
+          },
+        ],
+        loading: [],
+      }),
+    );
+    bump(tree, 2);
+    const phon = scaledOf(tree, popupStyles.phonetic);
+    expect(phon.fontSize).toBe(24);
+    expect(phon.lineHeight).toBeUndefined();
+  });
+});
+
+// --- Font stepper bounds are DERIVED, not hard-coded ---------------------
+//
+// canShrink/canGrow used to compare against the literal endpoints 'S' and
+// 'L'. That is invisible with three levels and catastrophic the moment a
+// fourth is appended: A+ would grey out at L and every level above it
+// would be unreachable. These pin the bound to the step functions, so the
+// literals cannot come back.
+
+const canGrowNow = (tree: ReactTestRenderer): boolean =>
+  !findByLabel(tree, 'Increase text size')[0].props.disabled;
+
+const canShrinkNow = (tree: ReactTestRenderer): boolean =>
+  !findByLabel(tree, 'Decrease text size')[0].props.disabled;
+
+describe('DefinitionPopup — font stepper bounds', () => {
+  // One below the number of levels — DERIVED, so appending a level
+  // updates this test rather than silently under-testing the new range.
+  const STEPS_TO_TOP = FONT_SIZES.length - 1;
+
+  test('A+ stays enabled at every level below the top, then greys once', () => {
+    // THE REGRESSION TEST. A literal endpoint (`fontSize !== 'L'`) fails
+    // this the moment the level list grows past that literal.
+    for (let k = 0; k < STEPS_TO_TOP; k++) {
+      const tree = renderPopup();
+      act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+      bump(tree, k);
+      expect(canGrowNow(tree)).toBe(true);
+    }
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    bump(tree, STEPS_TO_TOP);
+    expect(canGrowNow(tree)).toBe(false);
+  });
+
+  test('A- mirrors it: enabled at every level above the bottom', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    // At the bottom A- is greyed...
+    expect(canShrinkNow(tree)).toBe(false);
+    // ...and enabled at every level above it.
+    for (let k = 1; k <= STEPS_TO_TOP; k++) {
+      const tree2 = renderPopup();
+      act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+      bump(tree2, k);
+      expect(canShrinkNow(tree2)).toBe(true);
+    }
+  });
+
+  test('pressing A+ past the top is a no-op, not an overflow', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    bump(tree, STEPS_TO_TOP + 3);
+    // stepUp clamps on the array bound; the size must not run off the end
+    // (which would make FONT_SCALE[size] undefined and the fontSize NaN).
+    const {fontSize} = scaledOf(tree, popupStyles.definition);
+    expect(fontSize).toBe(17 * 2);
+    expect(canGrowNow(tree)).toBe(false);
+  });
+});
+
+// --- Five body-text levels, the indicator, and the damped headings ------
+
+// The level shown in the middle of the stepper. Located by the
+// fontSizeIndicator style rather than by text, because 'L' is a substring
+// of 'XL' and a collectText/toContain assertion would pass vacuously.
+const findLevelLabel = (tree: ReactTestRenderer): string => {
+  const slot = tree.root.findAll(
+    n => n.props.style === popupStyles.fontSizeIndicator,
+  )[0];
+  return String(slot.findAll(n => n.type === 'Text')[0].props.children);
+};
+
+const LEVEL_LABELS = ['S', 'M', 'L', 'XL', '2X'];
+
+// A result carrying a phonetic, so one fixture exercises the whole
+// headword > body > phonetic hierarchy.
+const withPhonetic = (word: string, definition: string): LookupResult => ({
+  queriedFor: word,
+  hits: [
+    {
+      source: 'WordNet',
+      entry: {word, definition, format: 'plain', phonetic: 'huh-LOH'},
+    },
+  ],
+  loading: [],
+});
+
+// Render, show `result`, and step up `k` times.
+const atLevel = (k: number, result?: LookupResult): ReactTestRenderer => {
+  const tree = renderPopup();
+  act(() => {
+    showDefinition(result ?? found('WordNet', 'hello', 'a greeting'));
+  });
+  bump(tree, k);
+  return tree;
+};
+
+describe('DefinitionPopup — five font levels', () => {
+  test('the indicator names each level, and XXL renders as 2X', () => {
+    LEVEL_LABELS.forEach((label, k) => {
+      expect(findLevelLabel(atLevel(k))).toBe(label);
+    });
+  });
+
+  test('the indicator holds exactly one Text, never wider than 2 capitals', () => {
+    // Pins the 32dp fit constraint: at fontSize 18 two capitals measure
+    // ~21dp inside the 32dp slot, three ~32dp and would spill into the
+    // + circle. A future 'XXL' label fails here rather than on-device.
+    LEVEL_LABELS.forEach((_label, k) => {
+      const tree = atLevel(k);
+      const slot = tree.root.findAll(
+        n => n.props.style === popupStyles.fontSizeIndicator,
+      );
+      expect(slot).toHaveLength(1);
+      expect(slot[0].findAll(n => n.type === 'Text')).toHaveLength(1);
+      // Character count as a PROXY for width — it is not a measurement.
+      // Two narrow capitals fit with ~10dp to spare, three ('XXL') fill
+      // the box exactly; but 'WW' is also two characters and would
+      // overflow. It holds for the five labels that exist.
+      expect(findLevelLabel(tree).length).toBeLessThanOrEqual(2);
+    });
+  });
+
+  test('the definition fontSize walks the exact scale table', () => {
+    // Includes that S/M/L are UNREGRESSED — the new levels only append.
+    const expected = [17, 21.25, 25.5, 29.75, 34];
+    expected.forEach((size, k) => {
+      expect(scaledOf(atLevel(k), popupStyles.definition).fontSize).toBe(size);
+    });
+  });
+
+  test('the new levels are reachable end-to-end, not just tabulated', () => {
+    const tree = atLevel(4);
+    expect(findLevelLabel(tree)).toBe('2X');
+    expect(scaledOf(tree, popupStyles.definition)).toEqual(
+      expect.objectContaining({fontSize: 34, lineHeight: 48}),
+    );
+  });
+
+  test('the headword scales at HALF the body rate', () => {
+    // 28 * (1 + (scale-1)/2). Full rate would reach 56 at 2X and ellipse
+    // a 13-character word in the Normal card.
+    const expected = [28, 31.5, 35, 38.5, 42];
+    expected.forEach((size, k) => {
+      expect(scaledOf(atLevel(k), popupStyles.word).fontSize).toBe(size);
+    });
+  });
+
+  test('headword > body > phonetic holds at ALL five levels', () => {
+    // The invariant, not five magic numbers: this survives any future
+    // edit to the scale table, which five hard-coded triples would not.
+    LEVEL_LABELS.forEach((_label, k) => {
+      const tree = atLevel(k, withPhonetic('hello', 'a greeting'));
+      const word = scaledOf(tree, popupStyles.word).fontSize!;
+      const body = scaledOf(tree, popupStyles.definition).fontSize!;
+      const phon = scaledOf(tree, popupStyles.phonetic).fontSize!;
+      expect(word).toBeGreaterThan(body);
+      expect(body).toBeGreaterThan(phon);
+    });
+  });
+
+  test('the thesaurus section heading holds its ratio to its own list', async () => {
+    // FULL body rate, not the headword's damped one. Damping is a
+    // horizontal-space remedy for the header row; this label sits in the
+    // scrolling body and wraps freely, and damping it would shrink it
+    // relative to its own list at every level (0.94x at S down to 0.71x
+    // at 2X) — manufacturing the very "heading half the size of its
+    // content" problem it was meant to prevent.
+    const expected = [16, 20, 24, 28, 32];
+    for (let k = 0; k < expected.length; k++) {
+      setPopupActions(
+        fakeActions(async () => ({
+          lang: 'en',
+          omw: {synonyms: ['glad'], antonyms: ['sad']},
+        })),
+      );
+      const tree = renderPopup();
+      act(() => showDefinition(wordnetHit('happy', 'feeling joy')));
+      await act(async () =>
+        tree.root
+          .findAll(
+            n => n.props.accessibilityLabel === 'Thesaurus' && n.props.onPress,
+          )[0]
+          .props.onPress(),
+      );
+      await flush();
+      bump(tree, k);
+      const label = scaledOf(tree, popupStyles.thesaurusLabel).fontSize!;
+      const list = scaledOf(tree, popupStyles.thesaurusList).fontSize!;
+      expect(label).toBe(expected[k]);
+      // The invariant that actually holds and means something: the
+      // heading/list relationship is scale-INVARIANT. (The bound this
+      // replaces — label >= list * 0.7 — was reverse-engineered from the
+      // answer: at 2X it read 24 >= 23.8 and caught nothing.)
+      expect(label / list).toBeCloseTo(16 / 17, 5);
+    }
+  });
+
+  test('chrome stays FIXED at 2X — badges, status, and button labels', () => {
+    // Each of these renders with its bare style object, no scaling layer.
+    // Catches an over-eager "scale everything" refactor: scaling notFound
+    // alone would invert it against the add-definition form below it.
+    const tree = atLevel(4, {
+      queriedFor: 'hello',
+      hits: [
+        {source: 'WordNet', entry: {word: 'hello', definition: 'a', format: 'plain'}},
+        {source: 'User', entry: {word: 'hello', definition: 'b', format: 'plain'}},
+      ],
+      loading: [],
+    });
+    const rendersBare = (base: object): boolean =>
+      tree.root.findAll(n => n.props.style === base).length > 0;
+    expect(rendersBare(popupStyles.sourceBadge)).toBe(true);
+    expect(rendersBare(popupStyles.closeLabel)).toBe(true);
+    expect(rendersBare(popupStyles.fontSizeLabel)).toBe(true);
+
+    const nf = atLevel(4, notFound('zzz'));
+    expect(
+      nf.root.findAll(n => n.props.style === popupStyles.notFound),
+    ).not.toHaveLength(0);
+  });
+});
+
+describe('DefinitionPopup — font level and maximize are orthogonal', () => {
+  test('toggling maximize does not disturb the font level', () => {
+    const tree = atLevel(4);
+    expect(scaledOf(tree, popupStyles.definition).fontSize).toBe(34);
+    act(() => findByLabel(tree, 'Maximize window')[0].props.onPress());
+    expect(scaledOf(tree, popupStyles.definition).fontSize).toBe(34);
+    act(() => findByLabel(tree, 'Restore window')[0].props.onPress());
+    expect(scaledOf(tree, popupStyles.definition).fontSize).toBe(34);
+    expect(findLevelLabel(tree)).toBe('2X');
+  });
+
+  test('stepping the font level does not disturb the window size', () => {
+    const tree = renderPopup();
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    act(() => findByLabel(tree, 'Maximize window')[0].props.onPress());
+    bump(tree, 4);
+    expect(findCardStyle(tree)).toEqual(
+      expect.objectContaining({width: '100%', maxHeight: '100%', flex: 1}),
+    );
+    expect(findLevelLabel(tree)).toBe('2X');
+  });
+
+  test('the level survives hide -> show, and a new headword', () => {
+    const tree = atLevel(4);
+    act(() => hideDefinition());
+    act(() => showDefinition(found('WordNet', 'hello', 'a greeting')));
+    expect(findLevelLabel(tree)).toBe('2X');
+    // The headword reset effect clears tab/thesaurus/copyStatus — not
+    // the font level.
+    act(() => showDefinition(found('WordNet', 'world', 'the earth')));
+    expect(collectText(tree)).toContain('the earth');
+    expect(findLevelLabel(tree)).toBe('2X');
+  });
+});
+
+// --- The line-box property, and the paths scaled() now owns ------------
+
+describe('scalable body styles leave room for the font line box', () => {
+  test('every scalable style clears the line-box ratio at EVERY level', () => {
+    // The claim this whole milestone rests on, stated as a property
+    // rather than as today's constants. Because scaling is proportional,
+    // lineHeight/fontSize is level-invariant — so checking the BASE
+    // style checks all five levels at once, and a style added tomorrow
+    // at fontSize 20 / lineHeight 20 fails here instead of on-device.
+    //
+    // 1.171 is Roboto's metric line box (ascent .927 + descent .244).
+    // Note what this does and does not assert: on RN 0.79 a lineHeight
+    // below it does NOT clip — CustomLineHeightSpan implements the CSS
+    // half-leading model and deliberately lets glyphs draw outside their
+    // box — it means consecutive lines encroach. It is a leading
+    // criterion, not a clipping one.
+    const LINE_BOX = 1.171;
+    const scalable = [
+      popupStyles.definition,
+      popupStyles.example,
+      popupStyles.synonyms,
+      popupStyles.thesaurusList,
+    ];
+    for (const style of scalable) {
+      expect(style.lineHeight / style.fontSize).toBeGreaterThanOrEqual(
+        LINE_BOX,
+      );
+    }
+  });
+});
+
+describe('DefinitionPopup — the WordNet and FVDP body paths scale too', () => {
+  // A mutation sweep found that reverting senseBlocks' definition to
+  // unscaled left the whole suite green: scaledOf picks the FIRST match,
+  // and the plain-format fixtures used almost everywhere resolve to
+  // SourceSection's node, never senseBlocks'. A wordnet fixture is the
+  // only way to reach the most-rendered string in the app.
+  test('the WordNet definition body scales — the most-rendered string', () => {
+    const tree = renderPopup();
+    act(() => {
+      showDefinition(found('WordNet', 'AI', aiEntry, 'wordnet'));
+    });
+    bump(tree, 4);
+    expect(scaledOf(tree, popupStyles.definition)).toEqual(
+      expect.objectContaining({fontSize: 34, lineHeight: 48}),
+    );
+  });
+
+  test('the WordNet sense index scales', () => {
+    const tree = renderPopup();
+    act(() => {
+      showDefinition(found('WordNet', 'AI', aiEntry, 'wordnet'));
+    });
+    bump(tree, 4);
+    expect(scaledOf(tree, popupStyles.senseIndex).fontSize).toBe(32);
+  });
+
+  test('the synonyms LABEL takes its size from synonyms, at every level', () => {
+    // One of the two sites scaled() cannot own — it registers
+    // synonymsLabel (weight + colour, no size) but borrows synonyms'
+    // size — so it is guarded here instead.
+    [1, 1.25, 1.5, 1.75, 2].forEach((scale, k) => {
+      const tree = renderPopup();
+      act(() => {
+        showDefinition(found('WordNet', 'AI', aiEntry, 'wordnet'));
+      });
+      bump(tree, k);
+      const label = scaledOf(tree, popupStyles.synonymsLabel);
+      expect(label.fontSize).toBe(14 * scale);
+      expect(label.lineHeight).toBe(20 * scale);
+    });
   });
 });

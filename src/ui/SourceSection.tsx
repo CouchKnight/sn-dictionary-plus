@@ -10,8 +10,8 @@
 //   'html'    — strip tags via htmlToPlainText and render as text
 //   'plain'   — render the definition string verbatim
 //
-// fontScale is the popup-level body-text multiplier (1.0 / 1.25 /
-// 1.5 for S / M / L). The badge is chrome and stays at its base
+// fontScale is the popup-level body-text multiplier (1.0 to 2.0, for
+// S / M / L / XL / 2X). The badge is chrome and stays at its base
 // size; only definition body text scales.
 
 import React, {useMemo} from 'react';
@@ -23,7 +23,7 @@ import {parseFvdpEntry} from './fvdpFormatter';
 import {FvdpText} from './fvdpBlocks';
 import {containsRenderableHtml} from './htmlParser';
 import {HtmlText} from './HtmlText';
-import {popupStyles as styles} from './popupStyles';
+import {popupStyles as styles, scaled} from './popupStyles';
 
 type SourceSectionProps = {
   hit: SourceHit;
@@ -46,7 +46,7 @@ export const SourceSection = ({
   // that property explicit and footgun-free for future call sites.
   const {definition, format} = hit.entry;
   const scaledDefinitionStyle = useMemo(
-    () => [styles.definition, {fontSize: styles.definition.fontSize * fontScale}],
+    () => scaled(styles.definition, fontScale),
     [fontScale],
   );
   const body = useMemo(() => {

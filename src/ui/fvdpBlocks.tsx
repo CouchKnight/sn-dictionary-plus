@@ -7,7 +7,7 @@
 // senses stack as numbered blocks with a hairline divider, and each
 // bilingual example renders as "source — translation".
 //
-// fontScale is the popup's A−/A+ body multiplier (1.0 / 1.25 / 1.5).
+// fontScale is the popup's A−/A+ body multiplier (1.0 to 2.0).
 // Chrome (the POS badge) stays at base size; only readable body text —
 // gloss, sense index, examples, note body — scales, exactly as SenseList
 // threads it.
@@ -19,11 +19,7 @@ import type {
   FvdpSense,
   ParsedFvdpEntry,
 } from './fvdpFormatter';
-import {popupStyles as styles} from './popupStyles';
-
-const scaledFont = (base: number, scale: number): {fontSize: number} => ({
-  fontSize: base * scale,
-});
+import {popupStyles as styles, scaled, scaleText} from './popupStyles';
 
 type FvdpTextProps = {parsed: ParsedFvdpEntry; fontScale: number};
 
@@ -57,9 +53,13 @@ const FvdpSectionBlock = ({
   if (section.kind === 'note') {
     return (
       <View style={[styles.sense, showDivider && styles.senseDivider]}>
-        <Text style={[styles.synonyms, scaledFont(styles.synonyms.fontSize, fontScale)]}>
+        <Text style={scaled(styles.synonyms, fontScale)}>
+          {/* Not scaled(): this renders `synonymsLabel` — weight and
+              colour, no size of its own — at `synonyms`' size, so the
+              registered style and the scaled one deliberately differ.
+              The scaled entry must stay LAST here. */}
           <Text
-            style={[styles.synonymsLabel, scaledFont(styles.synonyms.fontSize, fontScale)]}>
+            style={[styles.synonymsLabel, scaleText(styles.synonyms, fontScale)]}>
             {`${section.label}: `}
           </Text>
           {section.body}
@@ -102,12 +102,12 @@ const FvdpSenseBlock = ({
 }: FvdpSenseBlockProps): React.JSX.Element => (
   <View style={[styles.sense, showDivider && styles.senseDivider]}>
     <View style={styles.senseHeader}>
-      <Text style={[styles.senseIndex, scaledFont(styles.senseIndex.fontSize, fontScale)]}>
+      <Text style={scaled(styles.senseIndex, fontScale)}>
         {`${index}.`}
       </Text>
     </View>
     {sense.gloss ? (
-      <Text style={[styles.definition, scaledFont(styles.definition.fontSize, fontScale)]}>
+      <Text style={scaled(styles.definition, fontScale)}>
         {sense.gloss}
       </Text>
     ) : null}
@@ -116,7 +116,7 @@ const FvdpSenseBlock = ({
         {sense.examples.map((ex, j) => (
           <Text
             key={j}
-            style={[styles.example, scaledFont(styles.example.fontSize, fontScale)]}>
+            style={scaled(styles.example, fontScale)}>
             {ex.translation ? `${ex.source} — ${ex.translation}` : ex.source}
           </Text>
         ))}

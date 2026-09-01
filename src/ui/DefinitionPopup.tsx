@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import type {LayoutChangeEvent} from 'react-native';
 import {PluginManager} from 'sn-plugin-lib';
 import {
   closeSettings,
@@ -21,7 +22,7 @@ import {
 import {getPenToolObserver} from '../native/penToolObserver';
 import SettingsPanel from './SettingsPanel';
 import {SourceSection} from './SourceSection';
-import {popupStyles as styles} from './popupStyles';
+import {popupStyles as styles, scaled} from './popupStyles';
 import {t} from '../i18n/i18n';
 import {parseWordNetEntry} from './wordnetFormatter';
 import {buildCopyText} from './copyText';
@@ -43,20 +44,54 @@ type ThesaurusCache = {
   result: ThesaurusResult;
 };
 
-// Body-text size selector. The two-button A−/A+ control cycles
-// through these in order. Default is 'S' (the historical body-text
-// size); the user can step up to M or L when a definition is hard
-// to read at the default. Persists across show/hide cycles within
-// a session — the popup component never unmounts, only changes
-// what it renders — so a user who picks L sees L on the next tap
-// without re-clicking. Resets only when the JS bundle reloads.
-const FONT_SIZES = ['S', 'M', 'L'] as const;
+// Body-text size selector. The two-button A− / A+ control cycles
+// through these in order and the middle of the stepper shows where you
+// are. Default is 'S' (the historical body-text size). Persists across
+// show/hide cycles within a session — the popup component never
+// unmounts, only changes what it renders — so a user who picks L sees L
+// on the next tap without re-clicking. Resets only when the JS bundle
+// reloads, and is deliberately INDEPENDENT of `maximized`: big text in
+// a small window is a legitimate combination (issue #37's reporter
+// wanted page context preserved).
+//
+// Five levels, linear in +0.25 steps to a 2x body. 2x is a principled
+// ceiling: 17dp * 2 = 34dp = 15.3pt physical (1dp = 1/160in), the top
+// of the large-print range. Steps stay LINEAR rather than geometric so
+// S/M/L keep their shipped values byte-for-byte and this change only
+// appends. The side effect is desirable: the relative jump shrinks as
+// you climb (+25%, +20%, +16.7%, +14.3%) — coarse control where the
+// text is small, fine control at the top where the user is dialling in.
+// Exported so tests derive the level count from the single source of
+// truth rather than hard-coding "four presses to the top".
+export const FONT_SIZES = ['S', 'M', 'L', 'XL', 'XXL'] as const;
 type FontSize = (typeof FONT_SIZES)[number];
 
 const FONT_SCALE: Record<FontSize, number> = {
   S: 1,
   M: 1.25,
   L: 1.5,
+  XL: 1.75,
+  XXL: 2,
+};
+
+// What the middle of the ( − )( ? )( + ) stepper shows. With five levels
+// the greyed end buttons no longer identify M / L / XL — three of the
+// five present identically — and each probe costs a full e-ink repaint.
+//
+// 'XXL' renders as '2X' because three capitals at fontSize 18 measure
+// ~32dp and exactly fill the 32dp fontSizeIndicator slot, while '2X'
+// measures ~21dp and leaves the centering intact. Deliberately NOT
+// localized: these are size codes rather than words, the two touch
+// targets beside them already carry localized labels
+// (popup.fontSmaller / popup.fontLarger) in all 7 locales, and a
+// translated string would overflow the fixed 32dp box and knock on to
+// the headword's width budget in every locale independently.
+const FONT_LEVEL_LABEL: Record<FontSize, string> = {
+  S: 'S',
+  M: 'M',
+  L: 'L',
+  XL: 'XL',
+  XXL: '2X',
 };
 
 const stepUp = (size: FontSize): FontSize => {
@@ -72,6 +107,14 @@ const stepDown = (size: FontSize): FontSize => {
 export default function DefinitionPopup(): React.JSX.Element {
   const [state, setState] = useState<PopupState>(getCurrentState);
   const [fontSize, setFontSize] = useState<FontSize>('S');
+  // #37 — Normal (the 640-wide card) vs Maximized (fills the plugin
+  // view). Session-only component state, exactly like `fontSize` above:
+  // the popup never unmounts, so a user who maximizes stays maximized
+  // across show/hide AND across new headwords, and only a JS bundle
+  // reload resets it. Deliberately NOT persisted (no PopupActions port,
+  // no user.db) and deliberately NOT cleared by the reset effects below,
+  // which key on queriedFor / headword.
+  const [maximized, setMaximized] = useState(false);
   const [tab, setTab] = useState<Tab>('definition');
   const [thesaurus, setThesaurus] = useState<ThesaurusCache | null>(null);
   // The OCR-correction field's current text (lasso flow only). Seeded
@@ -135,6 +178,12 @@ export default function DefinitionPopup(): React.JSX.Element {
   // the recency gate rejects an old tool value left over from an earlier
   // gesture. It is also a ONE-SHOT: cleared after every press.
   const lastToolTypeRef = useRef<{tool: string; at: number} | null>(null);
+
+  // #37 — last logged region as "WxH", so the probe below fires once per
+  // DISTINCT region rather than once per layout. A ref, never state: a
+  // setState here would re-render and trigger a second layout pass for a
+  // value the component deliberately never reads. See handleBackdropLayout.
+  const loggedRegionRef = useRef<string | null>(null);
 
   // A new headword resets to the Definition tab and drops any cached
   // thesaurus (single-fetch is per-headword). EXCEPT when the result was
@@ -266,6 +315,46 @@ export default function DefinitionPopup(): React.JSX.Element {
     () => setFontSize(s => stepUp(s)),
     [],
   );
+
+  const handleToggleMaximize = useCallback(() => setMaximized(m => !m), []);
+
+  // #37 — region probe. The popup renders inside a firmware-granted
+  // overlay region, NOT the screen: both buttons register regionType:1
+  // (center dialog) at 720x540 (registerNoteLassoButton.ts:72-75,
+  // registerDocSelectButton.ts:60-63) and the SDK enum documents 2 =
+  // fullscreen (NativePluginManager.d.ts:59-65). Whether the firmware
+  // honours that request is UNVERIFIED, and it decides whether a
+  // percentage-sized "maximized" card actually gains anything. `backdrop`
+  // is flex:1 inside the region and onLayout reports its border box
+  // (padding included), so this measures the grant directly, in dp.
+  //
+  // Write-only: the measurement goes to the log and nowhere else. The
+  // component must never size itself from this number — the whole point
+  // of the percentage/flex geometry is that it needs no device numbers.
+  const handleBackdropLayout = useCallback((e: LayoutChangeEvent) => {
+    // nativeEvent crosses from native — validate at the boundary.
+    const layout = e?.nativeEvent?.layout;
+    if (
+      !layout ||
+      typeof layout.width !== 'number' ||
+      typeof layout.height !== 'number'
+    ) {
+      return;
+    }
+    const key = `${Math.round(layout.width)}x${Math.round(layout.height)}`;
+    // Log once per distinct region: quiet in steady state, but still
+    // catches the NOTE-lasso and DOC-selection buttons being granted
+    // different regions (they are separate registerButton calls).
+    if (loggedRegionRef.current === key) {
+      return;
+    }
+    loggedRegionRef.current = key;
+    // console.log, NOT warn/error: the Supernote RN host filters
+    // console.warn / console.error out of logcat (index.js:76-77).
+    // Single-bracket tag matches the repo convention ([discovery],
+    // [settings], [import], [provision]).
+    console.log(`[region] view=${key}dp requested=720x540 card=640`);
+  }, []);
   const handleDefinitionTab = useCallback(() => {
     setTab('definition');
     setCopyStatus('idle');
@@ -341,6 +430,13 @@ export default function DefinitionPopup(): React.JSX.Element {
     return <View pointerEvents="none" style={styles.hidden} />;
   }
 
+  // One card geometry for every visible state, so opening Settings or
+  // starting a new lookup never snaps the window between sizes — each
+  // snap is a full-screen e-ink repaint.
+  const cardStyle = maximized
+    ? [styles.card, styles.cardMaximized]
+    : styles.card;
+
   if (state.kind === 'recognizing') {
     // Tap-to-popup speedup: the lasso flow opens the popup
     // immediately on tap, BEFORE the firmware finishes lasso-element
@@ -351,10 +447,14 @@ export default function DefinitionPopup(): React.JSX.Element {
     //
     // Font-size buttons are intentionally hidden here — there's no
     // body text to scale. They reappear when the result kind takes
-    // over.
+    // over. The maximize toggle is hidden for the same reason (nothing
+    // to maximize, and the state is transient), but the card STYLE is
+    // still carried: a maximized user doing a second lookup would
+    // otherwise get recognizing (small) then result (large) — two
+    // geometry changes and two full repaints for one word of diff.
     return (
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
+      <View style={styles.backdrop} onLayout={handleBackdropLayout}>
+        <View style={cardStyle}>
           <Text style={styles.recognizing}>{t('popup.recognizing')}</Text>
           {state.ocrLabel ? (
             <Text style={styles.ocrLabel}>{state.ocrLabel}</Text>
@@ -376,9 +476,9 @@ export default function DefinitionPopup(): React.JSX.Element {
     // SettingsPanel owns the card and the Back button (which restores the
     // stashed result via closeSettings).
     return (
-      <View style={styles.backdrop}>
+      <View style={styles.backdrop} onLayout={handleBackdropLayout}>
         {renderDismissLayer(closeSettings)}
-        <SettingsPanel resume={state.resume} />
+        <SettingsPanel resume={state.resume} maximized={maximized} />
       </View>
     );
   }
@@ -405,6 +505,24 @@ export default function DefinitionPopup(): React.JSX.Element {
   // loading section flips to a hit.
   const showSourceBadges = hits.length + loading.length >= 2;
   const fontScale = FONT_SCALE[fontSize];
+  // The HEADWORD's rate — half the body's, and its only consumer.
+  //
+  // This damping is a HORIZONTAL-SPACE remedy, not a typographic one:
+  // the headword shares one un-wrapping row with the control cluster, so
+  // at full rate it would reach 56dp at 2X and ellipse a 13-character
+  // word inside the Normal card's 392dp of header space. Half-rate caps
+  // it at 42, where ~17 characters still fit, while keeping it strictly
+  // above the body at every level (1.65x down to 1.24x).
+  //
+  // Nothing else may borrow it. Body text that merely LOOKS like a
+  // heading — the thesaurus section labels — has no width constraint
+  // (it sits in the scrolling body and wraps freely), and damping there
+  // would shrink it relative to its own list at every level, which is
+  // the opposite of what a heading wants.
+  //
+  // A single derived expression, NOT a second Record<FontSize, number>:
+  // one scale table, one damping factor, so the two cannot drift apart.
+  const headingScale = 1 + (fontScale - 1) / 2;
   // OCR-correction field shows ONLY in the lasso flow, gated on an
   // EXPLICIT editable===true (Designer ruling 4 / flag 5) — never
   // inferred from ocrLabel presence. doc-select omits editable and so
@@ -438,21 +556,40 @@ export default function DefinitionPopup(): React.JSX.Element {
     thesaurusForHeadword !== null &&
     (thesaurusForHeadword.synonyms.length > 0 ||
       thesaurusForHeadword.antonyms.length > 0);
-  // Hide the bound buttons rather than greying them — disabled-state
-  // styling on e-ink can look like dead pixels.
-  const canShrink = fontSize !== 'S';
-  const canGrow = fontSize !== 'L';
+  // At a bound the unusable button greys out instead of hiding, so the
+  // header layout never shifts.
+  //
+  // Derived from the step functions, NOT from literal endpoints: stepUp
+  // and stepDown already clamp on FONT_SIZES, so "a size that steps to
+  // itself" IS the bound, and FONT_SIZES stays the single source of
+  // truth. A hard-coded `fontSize !== 'L'` silently breaks the moment a
+  // level is appended — A+ would stay disabled at L and the new level
+  // would be permanently unreachable.
+  //
+  // The step-identity form is preferred over comparing against
+  // FONT_SIZES[length - 1] because that would re-derive the clamp rule a
+  // second time; this pins the button state to what the buttons actually
+  // do, so a future non-linear or skip-a-level step cannot desync the
+  // greying from the behaviour.
+  const canShrink = stepDown(fontSize) !== fontSize;
+  const canGrow = stepUp(fontSize) !== fontSize;
 
   return (
-    <View style={styles.backdrop}>
+    <View style={styles.backdrop} onLayout={handleBackdropLayout}>
       {renderDismissLayer(handleClose)}
-      <View style={styles.card}>
+      <View style={cardStyle}>
         <View style={styles.headerRow}>
-          <Text style={[styles.word, styles.headerWordWrap]} numberOfLines={1}>
+          <Text
+            style={[
+              styles.headerWordWrap,
+              ...scaled(styles.word, headingScale),
+            ]}
+            numberOfLines={1}>
             {headerWord}
           </Text>
-          {/* Right-aligned control cluster: the font-size stepper, then the
-              settings gear pinned to the top-right corner of the card. */}
+          {/* Right-aligned control cluster: the font-size stepper, the
+              maximize toggle, then the settings gear pinned to the
+              top-right corner of the card. */}
           <View style={styles.headerControls}>
           <View style={styles.fontSizeRow}>
             <Pressable
@@ -472,8 +609,13 @@ export default function DefinitionPopup(): React.JSX.Element {
                 −
               </Text>
             </Pressable>
+            {/* The middle slot shows WHICH level you are on. With five
+                levels the greyed end buttons no longer identify M / L /
+                XL, and each probe costs a full e-ink repaint. */}
             <View style={styles.fontSizeIndicator}>
-              <Text style={styles.fontSizeLabel}>A</Text>
+              <Text style={styles.fontSizeLabel}>
+                {FONT_LEVEL_LABEL[fontSize]}
+              </Text>
             </View>
             <Pressable
               accessibilityRole="button"
@@ -493,6 +635,21 @@ export default function DefinitionPopup(): React.JSX.Element {
               </Text>
             </Pressable>
           </View>
+          {/* #37 — Normal/Maximized window toggle. Reuses the stepper's
+              button + label styles: it IS a size control, and the 6dp
+              gap groups it with [−][A][+] while the gear keeps its 10dp
+              gap as the settings separator. □/▣ are Geometric Shapes,
+              the same non-emoji BMP family as the proven ↑↓ ☑☐ ⚙ ✎ —
+              single code point, no variation selector. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              maximized ? t('popup.restore') : t('popup.maximize')
+            }
+            onPress={handleToggleMaximize}
+            style={styles.fontSizeButton}>
+            <Text style={styles.fontSizeLabel}>{maximized ? '▣' : '□'}</Text>
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('settings.open')}
@@ -511,10 +668,7 @@ export default function DefinitionPopup(): React.JSX.Element {
         </View>
         {headerPhonetic ? (
           <Text
-            style={[
-              styles.phonetic,
-              {fontSize: styles.phonetic.fontSize * fontScale},
-            ]}
+            style={scaled(styles.phonetic, fontScale)}
             accessibilityLabel={`${t('popup.pronunciation')}: ${headerPhonetic}`}
             numberOfLines={1}>
             {headerPhonetic}
@@ -601,29 +755,23 @@ export default function DefinitionPopup(): React.JSX.Element {
               <View>
                 {thesaurusForHeadword.synonyms.length > 0 ? (
                   <View style={styles.thesaurusGroup}>
-                    <Text style={styles.thesaurusLabel}>
+                    <Text style={scaled(styles.thesaurusLabel, fontScale)}>
                       {t('popup.synonyms')}
                     </Text>
                     {/* Synonyms are non-tappable (plain text list). */}
                     <Text
-                      style={[
-                        styles.thesaurusList,
-                        {fontSize: styles.thesaurusList.fontSize * fontScale},
-                      ]}>
+                      style={scaled(styles.thesaurusList, fontScale)}>
                       {thesaurusForHeadword.synonyms.join(', ')}
                     </Text>
                   </View>
                 ) : null}
                 {thesaurusForHeadword.antonyms.length > 0 ? (
                   <View style={styles.thesaurusGroup}>
-                    <Text style={styles.thesaurusLabel}>
+                    <Text style={scaled(styles.thesaurusLabel, fontScale)}>
                       {t('popup.antonyms')}
                     </Text>
                     <Text
-                      style={[
-                        styles.thesaurusList,
-                        {fontSize: styles.thesaurusList.fontSize * fontScale},
-                      ]}>
+                      style={scaled(styles.thesaurusList, fontScale)}>
                       {thesaurusForHeadword.antonyms.join(', ')}
                     </Text>
                   </View>
