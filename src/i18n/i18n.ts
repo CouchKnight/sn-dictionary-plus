@@ -45,6 +45,8 @@ export type StringId =
   | 'popup.copy'
   | 'popup.copied'
   | 'popup.copyFailed'
+  | 'popup.maximize'
+  | 'popup.restore'
   | 'settings.open'
   | 'settings.title'
   | 'settings.back'
@@ -109,6 +111,8 @@ const STRINGS: Record<string, Partial<Record<StringId, string>>> = {
     'popup.copy': 'Copy',
     'popup.copied': 'Copied',
     'popup.copyFailed': "Couldn't copy",
+    'popup.maximize': 'Maximize window',
+    'popup.restore': 'Restore window',
     'settings.open': 'Settings',
     'settings.title': 'Settings',
     'settings.back': 'Back',
@@ -176,6 +180,8 @@ const STRINGS: Record<string, Partial<Record<StringId, string>>> = {
     'popup.copy': '复制',
     'popup.copied': '已复制',
     'popup.copyFailed': '复制失败',
+    'popup.maximize': '最大化窗口',
+    'popup.restore': '还原窗口',
     'settings.open': '设置',
     'settings.title': '设置',
     'settings.back': '返回',
@@ -238,6 +244,8 @@ const STRINGS: Record<string, Partial<Record<StringId, string>>> = {
     'popup.copy': '複製',
     'popup.copied': '已複製',
     'popup.copyFailed': '複製失敗',
+    'popup.maximize': '最大化視窗',
+    'popup.restore': '還原視窗',
     'settings.open': '設定',
     'settings.title': '設定',
     'settings.back': '返回',
@@ -300,6 +308,8 @@ const STRINGS: Record<string, Partial<Record<StringId, string>>> = {
     'popup.copy': 'コピー',
     'popup.copied': 'コピーしました',
     'popup.copyFailed': 'コピーできませんでした',
+    'popup.maximize': 'ウィンドウを最大化',
+    'popup.restore': 'ウィンドウを元のサイズに戻す',
     'settings.open': '設定',
     'settings.title': '設定',
     'settings.back': '戻る',
@@ -365,6 +375,8 @@ const STRINGS: Record<string, Partial<Record<StringId, string>>> = {
     'popup.copy': 'คัดลอก',
     'popup.copied': 'คัดลอกแล้ว',
     'popup.copyFailed': 'คัดลอกไม่ได้',
+    'popup.maximize': 'ขยายหน้าต่างเต็มจอ',
+    'popup.restore': 'คืนขนาดหน้าต่าง',
     'settings.open': 'การตั้งค่า',
     'settings.title': 'การตั้งค่า',
     'settings.back': 'ย้อนกลับ',
@@ -430,6 +442,8 @@ const STRINGS: Record<string, Partial<Record<StringId, string>>> = {
     'popup.copy': 'Kopiëren',
     'popup.copied': 'Gekopieerd',
     'popup.copyFailed': 'Kopiëren mislukt',
+    'popup.maximize': 'Venster maximaliseren',
+    'popup.restore': 'Venster herstellen',
     'settings.open': 'Instellingen',
     'settings.title': 'Instellingen',
     'settings.back': 'Terug',
@@ -498,6 +512,8 @@ const STRINGS: Record<string, Partial<Record<StringId, string>>> = {
     'popup.copy': 'Kopieren',
     'popup.copied': 'Kopiert',
     'popup.copyFailed': 'Kopieren fehlgeschlagen',
+    'popup.maximize': 'Fenster maximieren',
+    'popup.restore': 'Fenster wiederherstellen',
     'settings.open': 'Einstellungen',
     'settings.title': 'Einstellungen',
     'settings.back': 'Zurück',

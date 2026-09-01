@@ -73,6 +73,8 @@ describe('t (popup string lookup)', () => {
       'popup.copy',
       'popup.copied',
       'popup.copyFailed',
+      'popup.maximize',
+      'popup.restore',
     ] as const;
     const localeRows = Object.keys(STRINGS);
     expect(localeRows.length).toBeGreaterThan(0);
@@ -118,6 +120,8 @@ describe('t (popup string lookup)', () => {
       'popup.copy',
       'popup.copied',
       'popup.copyFailed',
+      'popup.maximize',
+      'popup.restore',
     ].sort();
     expect(enPopupKeys).toEqual(guarded);
   });
