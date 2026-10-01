@@ -471,6 +471,11 @@ export const popupStyles = StyleSheet.create({
     fontSize: 13,
     color: '#777777',
   },
+  // --- series spoiler gating card -------------------------------------
+  // A manual-mode layer choice, indented under its mode row.
+  seriesLayerRow: {
+    paddingLeft: 24,
+  },
   // --- F5 export section ----------------------------------------------
   // The current export-target path, shown above the folder list.
   exportTargetLabel: {

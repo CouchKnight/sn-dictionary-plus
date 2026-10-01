@@ -2,10 +2,15 @@ import {parseSeriesManifest, type SeriesManifest} from '../src/core/series/manif
 import {
   bookFraction,
   buildSeriesGate,
+  DEFAULT_SERIES_PREFS,
   matchBook,
+  nextFurthest,
   normalizeTitle,
+  positionParts,
   readingPosition,
   selectLayer,
+  type SeriesMode,
+  type SeriesPrefs,
 } from '../src/core/series/selectLayer';
 
 // The DCC manifest from the handoff (§3.1): books 1–8, three layers.
@@ -333,5 +338,118 @@ describe('buildSeriesGate', () => {
     const gate = buildSeriesGate([], null);
     expect(gate.include('DCC thru Book 8')).toBe(true);
     expect(gate.decisions).toEqual([]);
+  });
+});
+
+describe('buildSeriesGate — modes and furthest read', () => {
+  const ok = (manifest: SeriesManifest) => ({ok: true as const, manifest});
+  const bedlam = '/sdcard/Document/The_Eye_of_the_Bedlam_Bride.epub';
+  const S = 'Dungeon Crawler Carl';
+  const prefs = (p: Partial<SeriesPrefs>) => ({[S]: {...DEFAULT_SERIES_PREFS, ...p}});
+  const shown = (gate: ReturnType<typeof buildSeriesGate>) =>
+    [1, 2, 3, 4, 5, 6, 7, 8].map(n => `DCC thru Book ${n}`).filter(gate.include);
+
+  test('NOTE lasso (no book) uses the furthest-read mark', () => {
+    const gate = buildSeriesGate([ok(perBook())], null, prefs({furthest: 5.3}));
+    expect(shown(gate)).toEqual(['DCC thru Book 5']);
+    expect(gate.decisions[0].reason).toContain('no book open; using furthest read, Book 6 at 30%');
+  });
+
+  test('another book open also falls back to the furthest-read mark', () => {
+    const gate = buildSeriesGate([ok(perBook())], {filePath: '/x/Moby Dick.epub'}, prefs({furthest: 7}));
+    expect(gate.decisions[0].layer).toBe('DCC thru Book 7');
+    expect(gate.decisions[0].reason).toContain('Book 7 at 100%');
+  });
+
+  test("'current' with a series book open ignores the furthest mark", () => {
+    const gate = buildSeriesGate(
+      [ok(perBook())],
+      {filePath: '/x/Carls Doomsday Scenario.epub', page: 1, totalPages: 100},
+      prefs({furthest: 7}),
+    );
+    expect(gate.decisions[0].layer).toBe('DCC thru Book 1');
+    expect(gate.decisions[0].currentPosition).toBeCloseTo(1.01);
+  });
+
+  test("'furthest' shows the furthest mark even while rereading an early book", () => {
+    const gate = buildSeriesGate(
+      [ok(perBook())],
+      {filePath: '/x/Carls Doomsday Scenario.epub', page: 1, totalPages: 100},
+      prefs({mode: 'furthest', furthest: 5.3}),
+    );
+    expect(gate.decisions[0]).toEqual(
+      expect.objectContaining({mode: 'furthest', layer: 'DCC thru Book 5', book: 2}),
+    );
+    expect(gate.decisions[0].reason).toBe('furthest read: Book 6 at 30%');
+  });
+
+  test("'furthest' with nothing recorded shows the lowest layer", () => {
+    const gate = buildSeriesGate([ok(perBook())], {filePath: bedlam}, prefs({mode: 'furthest'}));
+    expect(gate.decisions[0].layer).toBe('DCC thru Book 1');
+    expect(gate.decisions[0].reason).toContain('nothing recorded yet');
+  });
+
+  test("'manual' shows the picked layer only", () => {
+    const gate = buildSeriesGate(
+      [ok(perBook())],
+      {filePath: bedlam, page: 1, totalPages: 400},
+      prefs({mode: 'manual', manualLayer: 'DCC thru Book 3'}),
+    );
+    expect(shown(gate)).toEqual(['DCC thru Book 3']);
+    expect(gate.decisions[0].reason).toBe('manual layer');
+  });
+
+  test("'manual' with an unknown pick falls back to the lowest layer", () => {
+    const gate = buildSeriesGate([ok(perBook())], null, prefs({mode: 'manual', manualLayer: 'gone'}));
+    expect(shown(gate)).toEqual(['DCC thru Book 1']);
+    expect(gate.decisions[0].reason).toContain('not found');
+  });
+
+  test("'off' shows every layer", () => {
+    const gate = buildSeriesGate([ok(perBook())], null, prefs({mode: 'off'}));
+    expect(shown(gate)).toHaveLength(8);
+    expect(gate.decisions[0]).toEqual(expect.objectContaining({showAll: true, layer: null}));
+  });
+
+  test('an unknown stored mode and a bad furthest value are ignored', () => {
+    const gate = buildSeriesGate([ok(perBook())], null, {
+      [S]: {mode: 'weird' as SeriesMode, furthest: NaN, manualLayer: null},
+    });
+    expect(gate.decisions[0]).toEqual(
+      expect.objectContaining({mode: 'current', layer: 'DCC thru Book 1', position: null}),
+    );
+  });
+
+  test('a furthest mark before the first layer hides the series', () => {
+    const gate = buildSeriesGate([ok(perBook())], null, prefs({furthest: 0.5}));
+    expect(gate.decisions[0].layer).toBeNull();
+    expect(gate.decisions[0].reason).toContain('series hidden');
+  });
+});
+
+describe('nextFurthest', () => {
+  const decision = (currentPosition: number | null) =>
+    ({currentPosition} as Parameters<typeof nextFurthest>[1]);
+  test.each([
+    [null, null, null],
+    [5.3, null, 5.3],
+    [null, 2.1, 2.1],
+    [5.3, 2.1, 5.3],
+    [5.3, 5.4, 5.4],
+  ])('previous %p, current %p -> %p', (prev, cur, expected) => {
+    expect(nextFurthest(prev, decision(cur))).toBe(expected);
+  });
+});
+
+describe('positionParts', () => {
+  test.each([
+    [0, 1, 0],
+    [1, 1, 100],
+    [1.0000001, 2, 0],
+    [5.3, 6, 30],
+    [5.999, 6, 99],
+    [6, 6, 100],
+  ])('%p -> Book %p, %p%', (position, book, percent) => {
+    expect(positionParts(position)).toEqual({book, percent});
   });
 });

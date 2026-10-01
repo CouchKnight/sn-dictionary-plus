@@ -50,7 +50,7 @@ import {
   DEFAULT_USER_DICT_ROOT,
 } from './src/core/dict/userDictDiscovery';
 import {loadSeriesManifests} from './src/core/series/loadManifests';
-import {buildSeriesGate} from './src/core/series/selectLayer';
+import {createSeriesRuntime} from './src/core/series/seriesRuntime';
 import {lookupThesaurus} from './src/core/dict/sqlite/thesaurusLookup';
 import {addUserEntry} from './src/core/dict/sqlite/userEntries';
 import {
@@ -68,7 +68,7 @@ import {
 import {restoreDbs as orchestrateRestoreDbs} from './src/core/dict/sqlite/restoreDbs';
 import {SELECT_IMPORT_ALL} from './src/core/dict/sqlite/schema';
 import {t} from './src/i18n/i18n';
-import {setPopupActions} from './src/ui/popupController';
+import {setAlwaysLabelled, setPopupActions} from './src/ui/popupController';
 import {
   hideDefinition,
   showDefinition,
@@ -186,28 +186,19 @@ const resolveSlugDbPath = filename => joinPath(PLUGIN_LOCATION, filename);
 // live, rather than blocking the resolve). So runtime.lookup is set
 // quickly after enableButtons, instead of only after every import
 // finishes — closing the long null-lookup window.
-const runtime = {lookup: null};
+const runtime = {lookup: null, handle: null};
 
 // --- series spoiler gating -------------------------------------------
-// `series` holds every parsed *.series.json (valid or not), loaded once
-// after bootstrap and BEFORE runtime.lookup is set, so no lookup ever runs
-// with layers known-but-ungated. `lastCtx` remembers where the latest
-// popup came from so its re-lookup (OCR correction) uses the same gate.
-// A NOTE lasso has no reading position yet: null -> lowest layer.
-const series = {manifests: [], lastCtx: null};
-const seriesOptions = ctx => {
-  series.lastCtx = ctx;
-  if (series.manifests.length === 0) {
-    return undefined;
-  }
-  const gate = buildSeriesGate(series.manifests, ctx);
-  for (const d of gate.decisions) {
-    logger.log(
-      `[series] "${d.series}": ${d.layer === null ? 'hidden' : `showing "${d.layer}"`} (${d.reason})`,
-    );
-  }
-  return {include: gate.include};
-};
+// Manifests (disk + the stored last-good copies) and per-series prefs are
+// loaded once after bootstrap and BEFORE runtime.lookup is set, so no
+// lookup ever runs with layers known-but-ungated. A DOC lookup gates on
+// the reading position (and raises the furthest-read mark); a NOTE lasso
+// has no position and uses the furthest-read mark; the popup's re-lookup
+// reuses the latest popup's context.
+const series = createSeriesRuntime({
+  getDb: () => runtime.handle?.userDb ?? null,
+  logger,
+});
 
 // --- buttons: register FIRST, then enable after registration ---------
 // The "Plugin button is not exists!" race was setButtonState firing
@@ -219,7 +210,7 @@ const noteHandlerDeps = {
   file: PluginFileAPI,
   lookup: {
     lookup: (text, onUpdate) =>
-      runtime.lookup.lookup(text, onUpdate, seriesOptions(null)),
+      runtime.lookup.lookup(text, onUpdate, series.optionsFor(null)),
   },
   showRecognizing,
   // Lasso flow is editable: the popup shows the OCR-correction field so
@@ -238,7 +229,7 @@ const docHandlerDeps = {
     getCurrentPageNum: () => PluginCommAPI.getCurrentPageNum(),
     getCurrentTotalPages: () => PluginDocAPI.getCurrentTotalPages(),
   },
-  gateFor: seriesOptions,
+  gateFor: series.optionsFor,
   // Doc-select text is already exact — no OCR field (editable omitted).
   showResult: showDefinition,
   logger,
@@ -433,13 +424,12 @@ const bootstrapPorts = {
 bootstrap(bootstrapPorts, logger)
   .then(async handle => {
     // Series manifests sit loose in the scan root. Permission was already
-    // requested for discovery. KNOWN GAP: if the read fails (or the
-    // manifest is deleted) while layers imported on an earlier launch are
-    // still in their DBs, those layers go ungated. Persisting the last
-    // good manifest in user.db (step 3, settings) closes it.
+    // requested for discovery.
+    runtime.handle = handle;
+    let diskManifests = [];
     try {
       if (await ensureSdcardPermission()) {
-        series.manifests = await loadSeriesManifests({
+        diskManifests = await loadSeriesManifests({
           fileUtils: FileUtils,
           rootPath: DEFAULT_USER_DICT_ROOT,
           logger,
@@ -448,6 +438,14 @@ bootstrap(bootstrapPorts, logger)
     } catch (e) {
       logger.warn(`[series] manifest load failed: ${e.message}`);
     }
+    // Merges in the stored copies, so a deleted/unreadable manifest still
+    // gates layers imported earlier.
+    try {
+      await series.init(diskManifests);
+    } catch (e) {
+      logger.warn(`[series] init failed: ${e.message}`);
+    }
+    setAlwaysLabelled(series.isSeriesLayer);
     runtime.lookup = handle.lookup;
 
     // Register the popup actions (Designer ruling 1/2): the popup calls
@@ -477,7 +475,7 @@ bootstrap(bootstrapPorts, logger)
         const res = await runtime.lookup.lookup(
           text,
           undefined,
-          seriesOptions(series.lastCtx),
+          series.latestOptions(),
         );
         showDefinition(res, undefined, true);
       },
@@ -524,6 +522,11 @@ bootstrap(bootstrapPorts, logger)
       },
       // F4 opt-in delete toggle: read/write the keepSourcesAfterImport
       // app setting on the live user.db (default keep; null-db-safe).
+      // Series spoiler gating — the Settings series card.
+      listSeries: async () => series.list(),
+      setSeriesMode: (name, mode, manualLayer) =>
+        series.setMode(name, mode, manualLayer),
+      resetSeriesFurthest: name => series.resetFurthest(name),
       getKeepSources: () => getKeepSources(handle.userDb),
       setKeepSources: keep => setKeepSources(handle.userDb, keep, logger),
       // F7 delete an imported dict: the confirm dialog is a native overlay

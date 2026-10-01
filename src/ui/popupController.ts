@@ -7,6 +7,8 @@ import type {
   ExportSummary,
   RestoreSummary,
 } from '../core/dict/sqlite/settings';
+import type {SeriesInfo} from '../core/series/seriesRuntime';
+import type {SeriesMode} from '../core/series/selectLayer';
 
 // Bridge between async handlers (which don't render React) and the
 // popup component (which does). A handler calls one of the show*()
@@ -122,6 +124,11 @@ export type PopupActions = {
   // wired engine) still satisfy PopupActions; the panel guards on presence.
   confirmRestore?(): Promise<boolean>;
   restoreDbs?(backupDir: string): Promise<RestoreSummary>;
+  // Series spoiler gating — the Settings series card. All OPTIONAL (the
+  // card renders nothing without them). Changes apply immediately.
+  listSeries?(): Promise<SeriesInfo[]>;
+  setSeriesMode?(series: string, mode: SeriesMode, manualLayer?: string | null): Promise<void>;
+  resetSeriesFurthest?(series: string): Promise<void>;
   // (No `notify` port: the only native dialog is the two-button confirm, so a
   // one-action acknowledgement showed two identical "Close" buttons. Results
   // are surfaced inline instead — the Save status and the export/restore
@@ -136,6 +143,23 @@ export const setPopupActions = (actions: PopupActions): void => {
 };
 
 export const getPopupActions = (): PopupActions | null => popupActions;
+
+// Sources whose popup section is ALWAYS labelled, even when they are the
+// only hit: a series layer's name ("DCC thru Book 5") tells the reader
+// which spoiler layer answered. Registered by index.js once manifests load.
+let alwaysLabelled: (sourceName: string) => boolean = () => false;
+
+export const setAlwaysLabelled = (fn: (sourceName: string) => boolean): void => {
+  alwaysLabelled = fn;
+};
+
+export const isAlwaysLabelled = (sourceName: string): boolean => {
+  try {
+    return alwaysLabelled(sourceName);
+  } catch {
+    return false;
+  }
+};
 
 let currentState: PopupState = {visible: false};
 const listeners = new Set<Listener>();
@@ -218,5 +242,6 @@ export const __testing__ = {
     // Null the registry so suites don't leak actions across tests
     // (Designer flag 6).
     popupActions = null;
+    alwaysLabelled = () => false;
   },
 };

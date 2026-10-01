@@ -4,6 +4,7 @@ import {closeSettings, getPopupActions, type ResultSnapshot} from './popupContro
 import type {DictPref} from '../core/dict/sqlite/settings';
 import {exportRootParent} from '../core/dict/sqlite/exportDbs';
 import ExportSection from './ExportSection';
+import SeriesSection from './SeriesSection';
 import {popupStyles as styles} from './popupStyles';
 import {t} from '../i18n/i18n';
 
@@ -363,6 +364,10 @@ export default function SettingsPanel(props: {
             {t('settings.allDisabled')}
           </Text>
         ) : null}
+
+        {/* SERIES — spoiler gating per book series (renders nothing when
+            no series manifest is loaded). */}
+        <SeriesSection />
 
         {/* IMPORTS — keep-vs-delete the dropped source files after import. */}
         <Text style={styles.settingsSectionTitle}>{t('settings.sources')}</Text>

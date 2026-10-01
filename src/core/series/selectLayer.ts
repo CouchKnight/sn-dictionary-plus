@@ -16,11 +16,32 @@
 //   - The series shows the layer with the greatest covers <= position, or
 //     NOTHING when no layer qualifies. Every other layer is hidden.
 //   - No position (no book of this series open, or a NOTE lasso) -> the
-//     lowest layer.
+//     furthest-read mark, or the lowest layer when none is recorded.
+//   - Per-series modes (Settings): 'current' (default, the rules above),
+//     'furthest' (always the furthest-read mark — for rereads), 'manual'
+//     (a picked layer; an unknown pick falls back to the lowest) and 'off'
+//     (every layer shown, the user's explicit choice).
 //   - An invalid manifest hides every dict it names.
 //   - Sources that belong to no manifest are never touched.
 
 import type {ManifestParseResult, SeriesManifest} from './manifest';
+
+export type SeriesMode = 'current' | 'furthest' | 'manual' | 'off';
+export const SERIES_MODES: SeriesMode[] = ['current', 'furthest', 'manual', 'off'];
+
+export type SeriesPrefs = {
+  mode: SeriesMode;
+  // Highest reading position ever recorded for this series, or null.
+  furthest: number | null;
+  // The layer picked in 'manual' mode.
+  manualLayer: string | null;
+};
+
+export const DEFAULT_SERIES_PREFS: SeriesPrefs = {
+  mode: 'current',
+  furthest: null,
+  manualLayer: null,
+};
 
 export type ReadingContext = {
   filePath?: string | null;
@@ -30,11 +51,19 @@ export type ReadingContext = {
 
 export type SeriesDecision = {
   series: string;
+  valid: boolean;
+  mode: SeriesMode;
   // Matched book number, or null when the open file isn't in this series.
   book: number | null;
+  // Where the open book puts the reader (null when no book matched). This
+  // is what raises the furthest-read mark.
+  currentPosition: number | null;
+  // The position the layer was chosen from (null = none known).
   position: number | null;
-  // Layer shown, or null when the whole series is hidden.
+  // Layer shown, or null when none is (series hidden, or mode 'off').
   layer: string | null;
+  // True only in mode 'off': every layer is shown.
+  showAll: boolean;
   reason: string;
 };
 
@@ -137,9 +166,24 @@ export const selectLayer = (
 // epsilon so 120/400 reads "30%", not "29%" (5.3 − 5 = 0.2999…).
 const pct = (fraction: number): string => `${Math.floor(fraction * 100 + 1e-9)}%`;
 
+// Book + whole percent for a series position. An exact whole number is the
+// END of that book (6.0 -> Book 6, 100%), not the start of the next. The
+// percent rounds down, with an epsilon so 5.3 reads 30%, not 29%.
+export const positionParts = (position: number): {book: number; percent: number} => {
+  const book = Math.max(1, Math.ceil(position - 1e-9));
+  const percent = Math.min(100, Math.floor((position - (book - 1)) * 100 + 1e-9));
+  return {book, percent: Math.max(0, percent)};
+};
+
+const fmtPos = (position: number): string => {
+  const {book, percent} = positionParts(position);
+  return `Book ${book} at ${percent}%`;
+};
+
 export const buildSeriesGate = (
   manifests: ManifestParseResult[],
   ctx: ReadingContext | null,
+  prefsBySeries: Record<string, SeriesPrefs | undefined> = {},
 ): SeriesGate => {
   const hidden = new Set<string>();
   const decisions: SeriesDecision[] = [];
@@ -149,41 +193,100 @@ export const buildSeriesGate = (
       parsed.layerDicts.forEach(d => hidden.add(d));
       decisions.push({
         series: parsed.series,
+        valid: false,
+        mode: 'current',
         book: null,
+        currentPosition: null,
         position: null,
         layer: null,
+        showAll: false,
         reason: `invalid manifest, all layers hidden: ${parsed.errors.join('; ')}`,
       });
       continue;
     }
     const m = parsed.manifest;
+    const prefs = prefsBySeries[m.series] ?? DEFAULT_SERIES_PREFS;
+    const mode: SeriesMode = SERIES_MODES.includes(prefs.mode) ? prefs.mode : 'current';
+    const furthest = validNumber(prefs.furthest) ? prefs.furthest : null;
     const {book, ambiguous} = matchBook(m, ctx?.filePath);
-    const position =
+    const currentPosition =
       book === null ? null : readingPosition(book, ctx?.page, ctx?.totalPages);
-    const layer = selectLayer(m, position);
-    m.layers.forEach(l => {
-      if (l.dict !== layer) {
-        hidden.add(l.dict);
-      }
-    });
+
+    let position: number | null = null;
+    let layer: string | null;
+    let showAll = false;
     let reason: string;
-    if (book === null) {
-      reason = ctx?.filePath
-        ? 'open file is not in this series; showing the lowest layer'
-        : 'no book open; showing the lowest layer';
+    if (mode === 'off') {
+      layer = null;
+      showAll = true;
+      reason = 'gating off: every layer shown';
+    } else if (mode === 'manual') {
+      const picked = m.layers.find(l => l.dict === prefs.manualLayer);
+      layer = picked ? picked.dict : m.layers[0].dict;
+      reason = picked
+        ? 'manual layer'
+        : 'manual layer not found; showing the lowest layer';
     } else {
-      reason =
-        `Book ${book} at ${pct(bookFraction(ctx?.page, ctx?.totalPages))} ` +
-        `(position ${(position as number).toFixed(3)})`;
-      if (ambiguous.length > 0) {
-        reason += `; file matched books ${ambiguous.join(', ')}, using the lowest`;
+      position = mode === 'furthest' ? furthest : currentPosition ?? furthest;
+      layer = selectLayer(m, position);
+      if (mode === 'furthest') {
+        reason =
+          position === null
+            ? 'furthest read: nothing recorded yet; showing the lowest layer'
+            : `furthest read: ${fmtPos(position)}`;
+      } else if (book !== null) {
+        reason =
+          `Book ${book} at ${pct(bookFraction(ctx?.page, ctx?.totalPages))} ` +
+          `(position ${(currentPosition as number).toFixed(3)})`;
+        if (ambiguous.length > 0) {
+          reason += `; file matched books ${ambiguous.join(', ')}, using the lowest`;
+        }
+      } else {
+        const where = ctx?.filePath
+          ? 'open file is not in this series'
+          : 'no book open';
+        reason =
+          position === null
+            ? `${where}; no furthest read recorded, showing the lowest layer`
+            : `${where}; using furthest read, ${fmtPos(position)}`;
       }
       if (layer === null) {
         reason += '; no layer is safe yet, series hidden';
       }
     }
-    decisions.push({series: m.series, book, position, layer, reason});
+    if (!showAll) {
+      m.layers.forEach(l => {
+        if (l.dict !== layer) {
+          hidden.add(l.dict);
+        }
+      });
+    }
+    decisions.push({
+      series: m.series,
+      valid: true,
+      mode,
+      book,
+      currentPosition,
+      position,
+      layer,
+      showAll,
+      reason,
+    });
   }
 
   return {include: name => !hidden.has(name), decisions};
+};
+
+// The furthest-read mark after this lookup: raised (never lowered) by the
+// current position when a book of the series is open, in every mode.
+export const nextFurthest = (
+  previous: number | null,
+  decision: SeriesDecision,
+): number | null => {
+  if (decision.currentPosition === null) {
+    return previous;
+  }
+  return previous === null
+    ? decision.currentPosition
+    : Math.max(previous, decision.currentPosition);
 };

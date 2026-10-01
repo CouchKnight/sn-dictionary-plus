@@ -14,6 +14,7 @@ import {
   getCurrentState,
   getPopupActions,
   hideDefinition,
+  isAlwaysLabelled,
   shouldDismissOnBackdropTap,
   showSettings,
   subscribe,
@@ -791,7 +792,7 @@ export default function DefinitionPopup(): React.JSX.Element {
                 <SourceSection
                   key={`hit-${hit.source}-${i}`}
                   hit={hit}
-                  showBadge={showSourceBadges}
+                  showBadge={showSourceBadges || isAlwaysLabelled(hit.source)}
                   showDivider={i > 0}
                   fontScale={fontScale}
                 />
@@ -803,7 +804,7 @@ export default function DefinitionPopup(): React.JSX.Element {
                     styles.section,
                     (hits.length > 0 || i > 0) && styles.sectionDivider,
                   ]}>
-                  {showSourceBadges ? (
+                  {showSourceBadges || isAlwaysLabelled(sourceName) ? (
                     <View style={styles.sectionHeader}>
                       <Text style={styles.sourceBadge}>{sourceName}</Text>
                     </View>
