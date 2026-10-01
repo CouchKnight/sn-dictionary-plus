@@ -58,11 +58,11 @@ E("Reavers", "Megacorp/system govt", [
   (7, "Cyborg soldiers; all Reaver assets are awarded to the Princess Posse."),
  ], aliases={6: ["The Reavers"]}),
 
-E("Lemig Sortion", "Faction", [
+E("Lemig Sortition", "Faction", [
   (5, "One of the democratic Faction Wars teams."),
   (6, "A truly democratic multi-race government, mostly green goblin-like people. Carl's elf castle landed on their battlefield and splattered half their army."),
   (7, "Commander Stockade is their warlord."),
- ], rel=[(7, "Commander Stockade.")], aliases={5: ["Lemig Sortition"]}),
+ ], rel=[(7, "Commander Stockade.")], aliases={6: ["Lemig Sortion"]}),
 
 E("Nebulars", "Faction (religious)", [
   (5, "The Nebulars are religious zealots; their hunting team, the Nebular Sin Patrol, hunts Prepotente and Miriam Dom."),

@@ -299,3 +299,131 @@ describe('series layers are always labelled', () => {
     expect(isAlwaysLabelled('DCC thru Book 5')).toBe(false);
   });
 });
+
+describe('Settings dictionary list groups series layers', () => {
+  const dict = (name: string, enabled = true) => ({
+    prefKey: `k:${name}`,
+    name,
+    enabled,
+    sortOrder: 0,
+    removable: name !== 'WordNet',
+  });
+
+  const openSettings = async (actions: PopupActions) => {
+    setPopupActions(actions);
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = create(<DefinitionPopup />);
+    });
+    await act(async () => showSettings());
+    await flush();
+    return tree;
+  };
+
+  test('one row per series, with its layer count', async () => {
+    const tree = await openSettings(
+      baseActions({
+        listDictPrefs: async () => [dict('WordNet'), ...LAYERS.map(l => dict(l))],
+        listSeries: async () => [info()],
+      }),
+    );
+    const text = collectText(tree);
+    expect(text).toContain(`${S} (3)`);
+    expect(text).not.toContain('DCC thru Book 6\n');
+    expect(findByLabel(tree, `Disable: ${S}`)).toHaveLength(1);
+    expect(findByLabel(tree, 'Disable: DCC thru Book 1')).toHaveLength(0);
+  });
+
+  test('toggling the series row stages every layer, saved in one write', async () => {
+    const setDictPrefs = jest.fn(async () => undefined);
+    const tree = await openSettings(
+      baseActions({
+        listDictPrefs: async () => [dict('WordNet'), dict(LAYERS[0]), dict(LAYERS[1], false)],
+        listSeries: async () => [info()],
+        setDictPrefs,
+      }),
+    );
+    // Partly enabled -> "Enable" turns them all on.
+    await act(async () => {
+      findByLabel(tree, `Enable: ${S}`)[0].props.onPress();
+    });
+    await act(async () => {
+      findByLabel(tree, 'Save')[0].props.onPress();
+    });
+    expect(setDictPrefs).toHaveBeenCalledWith([
+      expect.objectContaining({name: 'WordNet', enabled: true}),
+      expect.objectContaining({name: LAYERS[0], enabled: true}),
+      expect.objectContaining({name: LAYERS[1], enabled: true}),
+    ]);
+  });
+
+  test('moving the series row moves all its layers', async () => {
+    const setDictPrefs = jest.fn(async () => undefined);
+    const tree = await openSettings(
+      baseActions({
+        listDictPrefs: async () => [dict('WordNet'), dict(LAYERS[0]), dict(LAYERS[1])],
+        listSeries: async () => [info()],
+        setDictPrefs,
+      }),
+    );
+    await act(async () => {
+      findByLabel(tree, `Move up: ${S}`)[0].props.onPress();
+    });
+    await act(async () => {
+      findByLabel(tree, 'Save')[0].props.onPress();
+    });
+    const saved = (setDictPrefs.mock.calls[0] as unknown as [{name: string}[]])[0];
+    expect(saved.map(p => p.name)).toEqual([LAYERS[0], LAYERS[1], 'WordNet']);
+  });
+
+  test('removing the series row confirms once and deletes every layer', async () => {
+    const confirmDeleteDict = jest.fn(async () => true);
+    const deleteImportedDict = jest.fn(async () => ({
+      ok: true,
+      removed: {slugDb: true, audit: true, pref: true, sources: true},
+      sourcesAtRisk: false,
+    }));
+    const tree = await openSettings(
+      baseActions({
+        listDictPrefs: async () => [dict('WordNet'), dict(LAYERS[0]), dict(LAYERS[1])],
+        listSeries: async () => [info()],
+        confirmDeleteDict,
+        deleteImportedDict,
+      }),
+    );
+    await act(async () => {
+      findByLabel(tree, `Remove: ${S}`)[0].props.onPress();
+    });
+    await flush();
+    expect(confirmDeleteDict).toHaveBeenCalledTimes(1);
+    expect(confirmDeleteDict).toHaveBeenCalledWith(S);
+    expect(deleteImportedDict.mock.calls).toEqual([[`k:${LAYERS[0]}`], [`k:${LAYERS[1]}`]]);
+  });
+
+  test('a layer whose files could not be deleted raises the warning', async () => {
+    const tree = await openSettings(
+      baseActions({
+        listDictPrefs: async () => [dict(LAYERS[0]), dict(LAYERS[1])],
+        listSeries: async () => [info()],
+        confirmDeleteDict: async () => true,
+        deleteImportedDict: jest
+          .fn()
+          .mockResolvedValueOnce({ok: true, removed: {slugDb: true, audit: true, pref: true, sources: false}, sourcesAtRisk: true})
+          .mockResolvedValue({ok: true, removed: {slugDb: true, audit: true, pref: true, sources: true}, sourcesAtRisk: false}),
+      }),
+    );
+    await act(async () => {
+      findByLabel(tree, `Remove: ${S}`)[0].props.onPress();
+    });
+    await flush();
+    expect(collectText(tree)).toContain("couldn't be deleted");
+  });
+
+  test('without listSeries every layer keeps its own row', async () => {
+    const tree = await openSettings(
+      baseActions({listDictPrefs: async () => [dict(LAYERS[0]), dict(LAYERS[1])]}),
+    );
+    expect(findByLabel(tree, `Disable: ${LAYERS[0]}`)).toHaveLength(1);
+    expect(findByLabel(tree, `Disable: ${S}`)).toHaveLength(0);
+  });
+});

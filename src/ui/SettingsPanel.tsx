@@ -5,6 +5,7 @@ import type {DictPref} from '../core/dict/sqlite/settings';
 import {exportRootParent} from '../core/dict/sqlite/exportDbs';
 import ExportSection from './ExportSection';
 import SeriesSection from './SeriesSection';
+import {buildDictRows, moveDictRow, toggleDictRow, type DictRow} from './dictRows';
 import {popupStyles as styles} from './popupStyles';
 import {t} from '../i18n/i18n';
 
@@ -50,6 +51,9 @@ export default function SettingsPanel(props: {
   // resolves the persisted flag — matching the engine default, so the
   // initial render never shows a misleading "delete" state.
   const [keepSources, setKeepSources] = React.useState<boolean>(true);
+  // Layer dict name -> its series, so a series' layers show as one row.
+  // Empty until listSeries resolves (or when it isn't wired).
+  const [layerSeries, setLayerSeries] = React.useState<Record<string, string>>({});
 
   // Re-fetch the current order+enablement (shared by the mount effect and
   // the post-delete refresh — F7). Null actions / a rejection leave the
@@ -94,6 +98,19 @@ export default function SettingsPanel(props: {
         // The engine surfaces its own errors; the panel just shows an
         // empty list rather than crashing the popup.
       });
+    // Series layers collapse into one row per series.
+    actions
+      .listSeries?.()
+      .then(list => {
+        if (!cancelled) {
+          const map: Record<string, string> = {};
+          list.forEach(info => info.layers.forEach(layer => (map[layer] = info.series)));
+          setLayerSeries(map);
+        }
+      })
+      .catch(() => {
+        // No grouping — every dict keeps its own row.
+      });
     // F4: load the persisted keep/delete preference (default keep on any
     // failure / degraded user.db — never surface a wrong "delete" state).
     actions
@@ -118,7 +135,9 @@ export default function SettingsPanel(props: {
   // optional (F3/F4 fakeActions omit them) — a missing one is a no-op. Any
   // rejection is swallowed (the engine logs it); the list just isn't
   // refreshed. Confirm runs FIRST so a stray tap never deletes silently.
-  const removeDict = (pref: DictPref): void => {
+  // A series row removes every layer of the series after ONE confirm (named
+  // after the series); the deletes then run one at a time.
+  const removeDicts = (label: string, prefKeys: string[]): void => {
     const actions = getPopupActions();
     if (!actions || !actions.confirmDeleteDict || !actions.deleteImportedDict) {
       return;
@@ -126,22 +145,25 @@ export default function SettingsPanel(props: {
     const {confirmDeleteDict, deleteImportedDict} = actions;
     // A new delete attempt clears any prior warning so it reflects THIS result.
     setSourcesLeftWarning(false);
-    confirmDeleteDict(pref.name)
-      .then(confirmed => {
+    confirmDeleteDict(label)
+      .then(async confirmed => {
         if (!confirmed) {
           return;
         }
-        return deleteImportedDict(pref.prefKey).then(result => {
+        let atRisk = false;
+        for (const prefKey of prefKeys) {
+          const result = await deleteImportedDict(prefKey);
           // F7-AC3: warn ONLY when the source files were found but couldn't be
           // deleted (`sourcesAtRisk`) — the dict can re-import on reload. NOT on
           // `removed.sources === false` alone, which is also the benign
           // "nothing on disk to delete" case (keep=false import) and must not
           // warn.
-          if (!cancelledRef.current && result.sourcesAtRisk) {
-            setSourcesLeftWarning(true);
-          }
-          refreshList();
-        });
+          atRisk = atRisk || result.sourcesAtRisk;
+        }
+        if (!cancelledRef.current && atRisk) {
+          setSourcesLeftWarning(true);
+        }
+        refreshList();
       })
       .catch(() => {
         // Swallow — the engine logs its own failure; the panel stays put.
@@ -197,21 +219,16 @@ export default function SettingsPanel(props: {
       });
   };
 
-  const toggle = (index: number): void => {
-    const next = prefs.slice();
-    next[index] = {...next[index], enabled: !next[index].enabled};
-    commit(next);
-  };
+  // One display row per dict, except a series' layers, which share a row.
+  const rows = buildDictRows(prefs, name => layerSeries[name] ?? null);
+
+  const toggle = (row: DictRow): void => commit(toggleDictRow(prefs, row));
 
   // Swap a row with its neighbour. Only ever called from a rendered arrow,
-  // which is hidden at the top/bottom bound (index 0 has no Move-up, the
-  // last has no Move-down), so the target is always in range.
-  const move = (index: number, delta: number): void => {
-    const target = index + delta;
-    const next = prefs.slice();
-    [next[index], next[target]] = [next[target], next[index]];
-    commit(next);
-  };
+  // which is hidden at the top/bottom bound (row 0 has no Move-up, the last
+  // has no Move-down), so the target is always in range.
+  const move = (rowIndex: number, delta: number): void =>
+    commit(moveDictRow(prefs, rows, rowIndex, delta));
 
   // F4: flip the keep-source-files preference. Optimistic local update +
   // best-effort persist (a degraded user.db just no-ops). Applies to FUTURE
@@ -229,7 +246,7 @@ export default function SettingsPanel(props: {
   const anyEnabled = prefs.some(pref => pref.enabled);
   // Reorder controls only make sense with ≥2 dictionaries; with one
   // dictionary the row is just a checkbox (nothing to reorder).
-  const multiDict = prefs.length > 1;
+  const multiDict = rows.length > 1;
 
   return (
     <View
@@ -301,64 +318,89 @@ export default function SettingsPanel(props: {
             {t('settings.deleteSourcesLeft')}
           </Text>
         ) : null}
-        {prefs.map((pref, index) => (
-          <View key={pref.prefKey} style={styles.dictRow}>
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{checked: pref.enabled}}
-              accessibilityLabel={
-                pref.enabled
-                  ? `${t('settings.disableDict')}: ${pref.name}`
-                  : `${t('settings.enableDict')}: ${pref.name}`
-              }
-              onPress={() => toggle(index)}
-              style={styles.dictToggleTap}>
-              <Text style={styles.dictCheckbox}>
-                {pref.enabled ? '☑' : '☐'}
-              </Text>
-              <Text
-                style={
-                  pref.enabled
-                    ? styles.dictName
-                    : [styles.dictName, styles.dictNameDisabled]
+        {rows.map((row, rowIndex) => {
+          // A dict row shows its own name; a series row shows the series
+          // with its layer count and acts on every layer at once.
+          const name =
+            row.kind === 'dict' ? row.pref.name : `${row.series} (${row.indices.length})`;
+          const enabled = row.kind === 'dict' ? row.pref.enabled : row.enabled !== 'none';
+          const checkbox =
+            row.kind === 'dict'
+              ? row.pref.enabled
+                ? '☑'
+                : '☐'
+              : row.enabled === 'all'
+              ? '☑'
+              : row.enabled === 'some'
+              ? '◪'
+              : '☐';
+          const label = row.kind === 'dict' ? row.pref.name : row.series;
+          const checked = row.kind === 'dict' ? row.pref.enabled : row.enabled === 'all';
+          const removable = row.kind === 'dict' ? row.pref.removable : row.removable;
+          return (
+            <View key={row.key} style={styles.dictRow}>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{checked}}
+                accessibilityLabel={
+                  checked
+                    ? `${t('settings.disableDict')}: ${label}`
+                    : `${t('settings.enableDict')}: ${label}`
                 }
-                numberOfLines={1}>
-                {pref.name}
-              </Text>
-            </Pressable>
-            <View style={styles.dictRowControls}>
-              {multiDict && index > 0 ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${t('settings.moveUp')}: ${pref.name}`}
-                  onPress={() => move(index, -1)}
-                  style={styles.dictArrowButton}>
-                  <Text style={styles.dictArrowLabel}>↑</Text>
-                </Pressable>
-              ) : null}
-              {multiDict && index < prefs.length - 1 ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${t('settings.moveDown')}: ${pref.name}`}
-                  onPress={() => move(index, 1)}
-                  style={styles.dictArrowButton}>
-                  <Text style={styles.dictArrowLabel}>↓</Text>
-                </Pressable>
-              ) : null}
-              {pref.removable ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${t('settings.removeDict')}: ${pref.name}`}
-                  onPress={() => removeDict(pref)}
-                  style={styles.removeButton}>
-                  <Text style={styles.removeButtonLabel}>
-                    {t('settings.removeDict')}
-                  </Text>
-                </Pressable>
-              ) : null}
+                onPress={() => toggle(row)}
+                style={styles.dictToggleTap}>
+                <Text style={styles.dictCheckbox}>{checkbox}</Text>
+                <Text
+                  style={
+                    enabled
+                      ? styles.dictName
+                      : [styles.dictName, styles.dictNameDisabled]
+                  }
+                  numberOfLines={1}>
+                  {name}
+                </Text>
+              </Pressable>
+              <View style={styles.dictRowControls}>
+                {multiDict && rowIndex > 0 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('settings.moveUp')}: ${label}`}
+                    onPress={() => move(rowIndex, -1)}
+                    style={styles.dictArrowButton}>
+                    <Text style={styles.dictArrowLabel}>↑</Text>
+                  </Pressable>
+                ) : null}
+                {multiDict && rowIndex < rows.length - 1 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('settings.moveDown')}: ${label}`}
+                    onPress={() => move(rowIndex, 1)}
+                    style={styles.dictArrowButton}>
+                    <Text style={styles.dictArrowLabel}>↓</Text>
+                  </Pressable>
+                ) : null}
+                {removable ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('settings.removeDict')}: ${label}`}
+                    onPress={() =>
+                      row.kind === 'dict'
+                        ? removeDicts(row.pref.name, [row.pref.prefKey])
+                        : removeDicts(
+                            row.series,
+                            row.indices.map(i => prefs[i].prefKey),
+                          )
+                    }
+                    style={styles.removeButton}>
+                    <Text style={styles.removeButtonLabel}>
+                      {t('settings.removeDict')}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
         {prefs.length > 0 && !anyEnabled ? (
           <Text accessibilityRole="alert" style={styles.settingsWarning}>
             {t('settings.allDisabled')}
