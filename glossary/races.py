@@ -19,7 +19,7 @@ E("Valtay", [(1, "Corporation"), (2, "Alien race")], [
   (5, "They blew up Queen Consort Ugloo's yacht over Manasa's death. Carl loses the Valtay sponsorship. A Syndicate ruling grants the Valtay Corporation majority control of the Borant Corporation, and with it the crawl."),
   (7, "Gondii worms can move into any dead body, take it over and learn its memories."),
   (8, "The rogue AI blows up Valtay-leased manufacturing facilities; an Emperator of the Valtay fleet arrives with a system-busting bomb."),
- ], rel=[(3, "Former sponsor of Carl."), (5, "Majority owner of Borant.")], aliases={4: ["Gondii", "gondii"], 7: ["Valtay worm"]}),
+ ], rel=[(3, "Sponsor of Carl."), (5, "No longer sponsors Carl."), (5, "Majority owner of Borant.")], aliases={4: ["Gondii", "gondii"], 7: ["Valtay worm"]}),
 
 E("Saccathian", "Alien race", [
   (2, "Tentacle-faced people, called \"Sacs.\" Princess D'nadia of the Prism is one."),
@@ -114,7 +114,7 @@ E("Dromedarian", "Alien race", [
 E("Changeling", "Race (dungeon & galactic)", [
   (1, "Shapeshifters. Mordecai was born a skyfowl but became a changeling on floor 3 of his own crawl."),
   (2, "A changeling can become any race it has physically touched, with caveats."),
-  (4, "On the 5th floor: Juice Box (a changeling prostitute Louis \"awakens\"), and the changeling principal Svern."),
+  (4, "On the 5th floor: Juice Box (a changeling prostitute Louis meets), and the changeling principal Svern."),
   (7, "High-level changeling NPCs run hot (you can track them by body temperature). Juice Box becomes an NPC warlord."),
  ], rel=[(1, "Mordecai."), (4, "Juice Box, Svern."), (6, "Ruby.")], aliases={1: ["changelings"], 4: ["Changeling Principal"]}),
 

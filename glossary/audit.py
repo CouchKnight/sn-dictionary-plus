@@ -26,7 +26,9 @@ CAP = re.compile(r"\b[A-Z][A-Za-z'\-]{2,}\b")
 
 
 def tokens(t):
-    return set(WORD.findall(t))
+    out = set(WORD.findall(t))
+    # "Eva-she's" (an em dash, normalised to "-") also shows the reader "Eva"
+    return out | {p for w in out if "-" in w for p in w.split("-") if p}
 
 
 def stem(w):
