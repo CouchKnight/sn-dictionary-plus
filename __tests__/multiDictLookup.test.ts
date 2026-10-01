@@ -386,3 +386,44 @@ describe('createMultiDictLookup', () => {
     });
   });
 });
+
+describe('createMultiDictLookup — options.include', () => {
+  test('excluded sources are neither queried nor listed as loading', async () => {
+    const shown = stubSource('DCC thru Book 5', {carl: 'crawler'});
+    const hidden = stubSource('DCC thru Book 8', {carl: 'spoiler'});
+    const base = stubSource('WordNet', {carl: 'a name'});
+    const lookup = createMultiDictLookup([shown, hidden, base]);
+    const snapshots: LookupResult[] = [];
+    const result = await lookup.lookup('carl', s => snapshots.push(s), {
+      include: name => name !== 'DCC thru Book 8',
+    });
+    expect(hidden.lookup).not.toHaveBeenCalled();
+    expect(result.hits.map(h => h.source)).toEqual(['DCC thru Book 5', 'WordNet']);
+    expect(snapshots[0].loading).toEqual(['DCC thru Book 5', 'WordNet']);
+    expect(snapshots.flatMap(s => s.loading)).not.toContain('DCC thru Book 8');
+  });
+
+  test('a throwing include predicate excludes that source and warns', async () => {
+    const a = stubSource('A', {apple: 'fruit'});
+    const b = stubSource('B', {apple: 'tree'});
+    const warn = jest.fn();
+    const lookup = createMultiDictLookup([a, b], {warn});
+    const result = await lookup.lookup('apple', undefined, {
+      include: name => {
+        if (name === 'A') {
+          throw new Error('bad gate');
+        }
+        return true;
+      },
+    });
+    expect(a.lookup).not.toHaveBeenCalled();
+    expect(result.hits.map(h => h.source)).toEqual(['B']);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('include("A") threw: bad gate'));
+  });
+
+  test('options without include behave like no options', async () => {
+    const a = stubSource('A', {apple: 'fruit'});
+    const result = await createMultiDictLookup([a]).lookup('apple', undefined, {});
+    expect(result.hits.map(h => h.source)).toEqual(['A']);
+  });
+});

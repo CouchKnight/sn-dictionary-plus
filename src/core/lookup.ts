@@ -62,8 +62,20 @@ export type LookupResult = {
 // the listener.
 export type LookupOnUpdate = (snapshot: LookupResult) => void;
 
+// Per-lookup options. `include` narrows which sources take part (by
+// DictSource name): a source it rejects is neither queried nor listed as
+// loading. Series spoiler gating uses it to drop the layers the reader
+// hasn't reached. Omitted = every source.
+export type LookupOptions = {
+  include?: (sourceName: string) => boolean;
+};
+
 export interface DictLookup {
-  lookup(text: string, onUpdate?: LookupOnUpdate): Promise<LookupResult>;
+  lookup(
+    text: string,
+    onUpdate?: LookupOnUpdate,
+    options?: LookupOptions,
+  ): Promise<LookupResult>;
 }
 
 // A single dict source. The registry composes many of these. Keep

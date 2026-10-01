@@ -1,5 +1,6 @@
 import {tryAcquire, release} from '../core/reentrancyGuard';
-import type {DictLookup, LookupResult} from '../core/lookup';
+import type {DictLookup, LookupOptions, LookupResult} from '../core/lookup';
+import type {ReadingContext} from '../core/series/selectLayer';
 import type {APIResponse, Logger} from '../sdk/types';
 import {unwrap} from '../sdk/unwrap';
 import {safeClosePluginView, type ClosablePluginView} from '../sdk/closeView';
@@ -10,8 +11,22 @@ export type DocAPILike = {
   getLastSelectedText: () => Promise<APIResponse<string>>;
 };
 
+// Where the reader is, for series spoiler gating. getCurrentFilePath and
+// getCurrentPageNum live on PluginCommAPI, getCurrentTotalPages on
+// PluginDocAPI; index.js stitches them together. The page base (0 or 1)
+// is undocumented — the raw values are logged so it can be checked on a
+// device.
+export type ReaderAPILike = {
+  getCurrentFilePath: () => Promise<APIResponse<string> | null | undefined>;
+  getCurrentPageNum: () => Promise<APIResponse<number> | null | undefined>;
+  getCurrentTotalPages: () => Promise<APIResponse<number> | null | undefined>;
+};
+
 export type DocDefineDeps = {
   doc: DocAPILike;
+  // Optional: without them the lookup runs ungated (tests, older wiring).
+  reader?: ReaderAPILike;
+  gateFor?: (ctx: ReadingContext) => LookupOptions;
   // PluginManager surface for closing the firmware overlay. Same
   // split as the NOTE handler: closePluginView is NOT on
   // PluginCommAPI, so wiring it through the comm dep would silently
@@ -20,6 +35,47 @@ export type DocDefineDeps = {
   lookup: DictLookup;
   showResult: (result: LookupResult) => void;
   logger: Logger;
+};
+
+// Each read is independent: one failing leaves that field null, which the
+// gate treats as "unknown" (fail closed), and never aborts the lookup.
+const readField = async <T>(
+  call: () => Promise<APIResponse<T> | null | undefined>,
+  name: string,
+  logger: Logger,
+): Promise<T | null> => {
+  try {
+    const res = await call();
+    if (res && res.success && res.result !== undefined && res.result !== null) {
+      return res.result;
+    }
+    logger.warn(`[doc-define] ${name} failed: ${res?.error?.message ?? 'no result'}`);
+  } catch (e) {
+    logger.warn(`[doc-define] ${name} threw: ${(e as Error).message}`);
+  }
+  return null;
+};
+
+export const readReadingContext = async (
+  reader: ReaderAPILike,
+  logger: Logger,
+): Promise<ReadingContext> => {
+  const filePath = await readField(reader.getCurrentFilePath, 'getCurrentFilePath', logger);
+  const page = await readField(reader.getCurrentPageNum, 'getCurrentPageNum', logger);
+  const totalPages = await readField(
+    reader.getCurrentTotalPages,
+    'getCurrentTotalPages',
+    logger,
+  );
+  logger.log(
+    `[doc-define] reading context: file=${JSON.stringify(filePath)} ` +
+      `page=${JSON.stringify(page)} total=${JSON.stringify(totalPages)}`,
+  );
+  return {
+    filePath: typeof filePath === 'string' ? filePath : null,
+    page: typeof page === 'number' ? page : null,
+    totalPages: typeof totalPages === 'number' ? totalPages : null,
+  };
 };
 
 export type DocDefineOutcome = 'ok' | 'busy' | 'no-selection' | 'failed';
@@ -54,10 +110,23 @@ export const onDocSelectDefine = async (
     // each source resolves. popupShown flips only after the first
     // emission so a synchronous throw inside lookup still closes the
     // plugin view via the finally block.
-    const result = await deps.lookup.lookup(text, snapshot => {
-      popupShown = true;
-      deps.showResult(snapshot);
-    });
+    // Series gating: work out where the reader is BEFORE the lookup so
+    // the spoiler layers they haven't reached are never queried.
+    let options: LookupOptions | undefined;
+    if (deps.gateFor) {
+      const ctx = deps.reader
+        ? await readReadingContext(deps.reader, deps.logger)
+        : {};
+      options = deps.gateFor(ctx);
+    }
+    const result = await deps.lookup.lookup(
+      text,
+      snapshot => {
+        popupShown = true;
+        deps.showResult(snapshot);
+      },
+      options,
+    );
     popupShown = true;
     deps.showResult(result);
     return 'ok';

@@ -45,7 +45,12 @@ import {
   deletePluginFile,
 } from './src/core/dict/sqlite/nativeImport';
 import {openRnSqliteDb} from './src/core/dict/sqlite/rnSqliteDb';
-import {discoverUserDicts} from './src/core/dict/userDictDiscovery';
+import {
+  discoverUserDicts,
+  DEFAULT_USER_DICT_ROOT,
+} from './src/core/dict/userDictDiscovery';
+import {loadSeriesManifests} from './src/core/series/loadManifests';
+import {buildSeriesGate} from './src/core/series/selectLayer';
 import {lookupThesaurus} from './src/core/dict/sqlite/thesaurusLookup';
 import {addUserEntry} from './src/core/dict/sqlite/userEntries';
 import {
@@ -183,6 +188,27 @@ const resolveSlugDbPath = filename => joinPath(PLUGIN_LOCATION, filename);
 // finishes — closing the long null-lookup window.
 const runtime = {lookup: null};
 
+// --- series spoiler gating -------------------------------------------
+// `series` holds every parsed *.series.json (valid or not), loaded once
+// after bootstrap and BEFORE runtime.lookup is set, so no lookup ever runs
+// with layers known-but-ungated. `lastCtx` remembers where the latest
+// popup came from so its re-lookup (OCR correction) uses the same gate.
+// A NOTE lasso has no reading position yet: null -> lowest layer.
+const series = {manifests: [], lastCtx: null};
+const seriesOptions = ctx => {
+  series.lastCtx = ctx;
+  if (series.manifests.length === 0) {
+    return undefined;
+  }
+  const gate = buildSeriesGate(series.manifests, ctx);
+  for (const d of gate.decisions) {
+    logger.log(
+      `[series] "${d.series}": ${d.layer === null ? 'hidden' : `showing "${d.layer}"`} (${d.reason})`,
+    );
+  }
+  return {include: gate.include};
+};
+
 // --- buttons: register FIRST, then enable after registration ---------
 // The "Plugin button is not exists!" race was setButtonState firing
 // before the button finished registering. enableButtons now AWAITS the
@@ -191,7 +217,10 @@ const noteHandlerDeps = {
   comm: PluginCommAPI,
   view: PluginManager,
   file: PluginFileAPI,
-  lookup: {lookup: (...args) => runtime.lookup.lookup(...args)},
+  lookup: {
+    lookup: (text, onUpdate) =>
+      runtime.lookup.lookup(text, onUpdate, seriesOptions(null)),
+  },
   showRecognizing,
   // Lasso flow is editable: the popup shows the OCR-correction field so
   // the user can fix a mis-recognised word (editable === true).
@@ -204,6 +233,12 @@ const docHandlerDeps = {
   doc: PluginDocAPI,
   view: PluginManager,
   lookup: {lookup: (...args) => runtime.lookup.lookup(...args)},
+  reader: {
+    getCurrentFilePath: () => PluginCommAPI.getCurrentFilePath(),
+    getCurrentPageNum: () => PluginCommAPI.getCurrentPageNum(),
+    getCurrentTotalPages: () => PluginDocAPI.getCurrentTotalPages(),
+  },
+  gateFor: seriesOptions,
   // Doc-select text is already exact — no OCR field (editable omitted).
   showResult: showDefinition,
   logger,
@@ -396,7 +431,23 @@ const bootstrapPorts = {
 };
 
 bootstrap(bootstrapPorts, logger)
-  .then(handle => {
+  .then(async handle => {
+    // Series manifests sit loose in the scan root. Permission was already
+    // requested for discovery. KNOWN GAP: if the read fails (or the
+    // manifest is deleted) while layers imported on an earlier launch are
+    // still in their DBs, those layers go ungated. Persisting the last
+    // good manifest in user.db (step 3, settings) closes it.
+    try {
+      if (await ensureSdcardPermission()) {
+        series.manifests = await loadSeriesManifests({
+          fileUtils: FileUtils,
+          rootPath: DEFAULT_USER_DICT_ROOT,
+          logger,
+        });
+      }
+    } catch (e) {
+      logger.warn(`[series] manifest load failed: ${e.message}`);
+    }
     runtime.lookup = handle.lookup;
 
     // Register the popup actions (Designer ruling 1/2): the popup calls
@@ -423,7 +474,11 @@ bootstrap(bootstrapPorts, logger)
         }
       },
       relookup: async text => {
-        const res = await runtime.lookup.lookup(text);
+        const res = await runtime.lookup.lookup(
+          text,
+          undefined,
+          seriesOptions(series.lastCtx),
+        );
         showDefinition(res, undefined, true);
       },
       // F3 dictionary manager: the heavy logic (merge with the live
