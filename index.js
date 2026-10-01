@@ -45,7 +45,12 @@ import {
   deletePluginFile,
 } from './src/core/dict/sqlite/nativeImport';
 import {openRnSqliteDb} from './src/core/dict/sqlite/rnSqliteDb';
-import {discoverUserDicts} from './src/core/dict/userDictDiscovery';
+import {
+  discoverUserDicts,
+  DEFAULT_USER_DICT_ROOT,
+} from './src/core/dict/userDictDiscovery';
+import {loadSeriesManifests} from './src/core/series/loadManifests';
+import {createSeriesRuntime} from './src/core/series/seriesRuntime';
 import {lookupThesaurus} from './src/core/dict/sqlite/thesaurusLookup';
 import {addUserEntry} from './src/core/dict/sqlite/userEntries';
 import {
@@ -63,7 +68,7 @@ import {
 import {restoreDbs as orchestrateRestoreDbs} from './src/core/dict/sqlite/restoreDbs';
 import {SELECT_IMPORT_ALL} from './src/core/dict/sqlite/schema';
 import {t} from './src/i18n/i18n';
-import {setPopupActions} from './src/ui/popupController';
+import {setAlwaysLabelled, setPopupActions} from './src/ui/popupController';
 import {
   hideDefinition,
   showDefinition,
@@ -181,7 +186,19 @@ const resolveSlugDbPath = filename => joinPath(PLUGIN_LOCATION, filename);
 // live, rather than blocking the resolve). So runtime.lookup is set
 // quickly after enableButtons, instead of only after every import
 // finishes — closing the long null-lookup window.
-const runtime = {lookup: null};
+const runtime = {lookup: null, handle: null};
+
+// --- series spoiler gating -------------------------------------------
+// Manifests (disk + the stored last-good copies) and per-series prefs are
+// loaded once after bootstrap and BEFORE runtime.lookup is set, so no
+// lookup ever runs with layers known-but-ungated. A DOC lookup gates on
+// the reading position (and raises the furthest-read mark); a NOTE lasso
+// has no position and uses the furthest-read mark; the popup's re-lookup
+// reuses the latest popup's context.
+const series = createSeriesRuntime({
+  getDb: () => runtime.handle?.userDb ?? null,
+  logger,
+});
 
 // --- buttons: register FIRST, then enable after registration ---------
 // The "Plugin button is not exists!" race was setButtonState firing
@@ -191,7 +208,10 @@ const noteHandlerDeps = {
   comm: PluginCommAPI,
   view: PluginManager,
   file: PluginFileAPI,
-  lookup: {lookup: (...args) => runtime.lookup.lookup(...args)},
+  lookup: {
+    lookup: (text, onUpdate) =>
+      runtime.lookup.lookup(text, onUpdate, series.optionsFor(null)),
+  },
   showRecognizing,
   // Lasso flow is editable: the popup shows the OCR-correction field so
   // the user can fix a mis-recognised word (editable === true).
@@ -204,6 +224,12 @@ const docHandlerDeps = {
   doc: PluginDocAPI,
   view: PluginManager,
   lookup: {lookup: (...args) => runtime.lookup.lookup(...args)},
+  reader: {
+    getCurrentFilePath: () => PluginCommAPI.getCurrentFilePath(),
+    getCurrentPageNum: () => PluginCommAPI.getCurrentPageNum(),
+    getCurrentTotalPages: () => PluginDocAPI.getCurrentTotalPages(),
+  },
+  gateFor: series.optionsFor,
   // Doc-select text is already exact — no OCR field (editable omitted).
   showResult: showDefinition,
   logger,
@@ -396,7 +422,30 @@ const bootstrapPorts = {
 };
 
 bootstrap(bootstrapPorts, logger)
-  .then(handle => {
+  .then(async handle => {
+    // Series manifests sit loose in the scan root. Permission was already
+    // requested for discovery.
+    runtime.handle = handle;
+    let diskManifests = [];
+    try {
+      if (await ensureSdcardPermission()) {
+        diskManifests = await loadSeriesManifests({
+          fileUtils: FileUtils,
+          rootPath: DEFAULT_USER_DICT_ROOT,
+          logger,
+        });
+      }
+    } catch (e) {
+      logger.warn(`[series] manifest load failed: ${e.message}`);
+    }
+    // Merges in the stored copies, so a deleted/unreadable manifest still
+    // gates layers imported earlier.
+    try {
+      await series.init(diskManifests);
+    } catch (e) {
+      logger.warn(`[series] init failed: ${e.message}`);
+    }
+    setAlwaysLabelled(series.isSeriesLayer);
     runtime.lookup = handle.lookup;
 
     // Register the popup actions (Designer ruling 1/2): the popup calls
@@ -423,7 +472,11 @@ bootstrap(bootstrapPorts, logger)
         }
       },
       relookup: async text => {
-        const res = await runtime.lookup.lookup(text);
+        const res = await runtime.lookup.lookup(
+          text,
+          undefined,
+          series.latestOptions(),
+        );
         showDefinition(res, undefined, true);
       },
       // F3 dictionary manager: the heavy logic (merge with the live
@@ -469,6 +522,11 @@ bootstrap(bootstrapPorts, logger)
       },
       // F4 opt-in delete toggle: read/write the keepSourcesAfterImport
       // app setting on the live user.db (default keep; null-db-safe).
+      // Series spoiler gating — the Settings series card.
+      listSeries: async () => series.list(),
+      setSeriesMode: (name, mode, manualLayer) =>
+        series.setMode(name, mode, manualLayer),
+      resetSeriesFurthest: name => series.resetFurthest(name),
       getKeepSources: () => getKeepSources(handle.userDb),
       setKeepSources: keep => setKeepSources(handle.userDb, keep, logger),
       // F7 delete an imported dict: the confirm dialog is a native overlay

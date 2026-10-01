@@ -100,7 +100,7 @@ E("Agatha", [(1, "Crawler"), (6, "Crawler / Residual")], [
  ], rel=[(7, "War Mage Rebellion.")], aliases={6: ["Agent 22"]}),
 
 E("Hekla", "Crawler", [
-  (1, "An Icelandic crawler shown on the recap."),
+  (1, "A crawler from Iceland, shown on the recap."),
   (2, "Leads Brynhild's Daughters; Amazonian Shieldmaiden; #2 on the bounty board."),
   (3, "Accidentally killed by Katia on the 4th-floor train."),
  ], rel=[(2, "Leader of Brynhild's Daughters."), (3, "Leader of Katia and Eva Sigrid.")]),
@@ -275,7 +275,7 @@ E("Menerva", "Former crawler", [
  ], rel=[(8, "Partner of Herot.")]),
 
 E("Tipid", "Former crawler", [
-  (6, "Author of the 4th edition of the Cookbook."),
+  (7, "Author of the 4th edition of the Cookbook."),
   (7, "A Crest; once chose to save himself when a key only let one out. Joins the Princess Posse."),
   (8, "About to lose his memory."),
  ], rel=[(7, "Ally of Rosetta.")]),
@@ -285,7 +285,7 @@ E("Rosetta", "Former crawler", [
   (6, "A Crest with her own show."),
   (7, "Rosetta of the Shadow Boxer show, author of the 7th edition; joins the Princess Posse."),
   (8, "Explains the Scavenger myth."),
- ], rel=[(7, "Ally of Tipid.")], aliases={7: ["Rosetta Thag"]}),
+ ], rel=[(7, "Ally of Tipid.")], aliases={6: ["Rosetta Thagra"], 7: ["Rosetta Thag"]}),
 
 E("Boomer", "Former crawler", [(7, "Former crawler leading the 106th Bloody Leeches; a Princess Posse colonel.")]),
 

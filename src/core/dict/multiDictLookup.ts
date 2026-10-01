@@ -16,6 +16,7 @@ import type {
   DictLookup,
   DictSource,
   LookupOnUpdate,
+  LookupOptions,
   LookupResult,
   SourceHit,
 } from '../lookup';
@@ -82,6 +83,7 @@ export const createMultiDictLookup = (
     async lookup(
       text: string,
       onUpdate?: LookupOnUpdate,
+      options?: LookupOptions,
     ): Promise<LookupResult> {
       const trimmed = text.trim();
       if (!trimmed) {
@@ -96,7 +98,23 @@ export const createMultiDictLookup = (
       // post-Promise.all, leaving us indexing past the resolved values
       // and pushing { entry: undefined } as a hit — breaking the popup
       // which expects entry.definition to exist.
-      const snapshot = sources.slice();
+      //
+      // options.include filters the snapshot itself, so an excluded source
+      // (e.g. a spoiler layer) is never queried and never shows up in
+      // `loading`. A throwing predicate excludes that source (fail closed).
+      const include = options?.include;
+      const snapshot = include
+        ? sources.filter(source => {
+            try {
+              return include(source.name);
+            } catch (e) {
+              warn(
+                `[multiDict] include("${source.name}") threw: ${(e as Error).message} — source skipped`,
+              );
+              return false;
+            }
+          })
+        : sources.slice();
       const resolved: (DictEntry | null | undefined)[] = new Array(
         snapshot.length,
       );

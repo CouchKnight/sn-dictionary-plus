@@ -26,13 +26,13 @@ E("Saccathian", "Alien race", [
   (7, "The Prism's Faction Wars scout was a Saccathian prince, one of D'nadia's relatives."),
  ], rel=[(2, "Prism Kingdom: D'nadia.")], aliases={2: ["Sacs", "Saccathians"]}),
 
-E("Nullian", "Alien race", [
+E("Null", "Alien race", [
   (2, "Big-headed aliens Earth called \"the Grays\"; others call them nasty perverts and blame them for the probe stories."),
   (4, "Whole systems refuse entry to the Null despite it being illegal."),
   (5, "Usually just called \"the Null.\""),
   (6, "Nullians capture and ride Nightgaunts, peaceful semi-intelligent bat creatures from a Nullian world."),
   (8, "Carl's lawyer Quasar is a Nullian."),
- ], rel=[(8, "Quasar (Carl's attorney).")], aliases={2: ["Grays", "The Grays", "the Null"]}),
+ ], rel=[(8, "Quasar (Carl's attorney).")], aliases={2: ["Grays", "The Grays", "the Null"], 5: ["Nullian", "Nullians"]}),
 
 E("Grixist", "Alien race", [
   (6, "Alien race of Huanxin Jinx, CEO of Icon Industries (\"of the Grixist Swarm\")."),
@@ -58,8 +58,8 @@ E("Orc", "Alien race", [
 
 E("Crest", "Alien race", [
   (5, "A hunter race on the 6th floor."),
-  (6, "A human race with no eyebrows. Rosetta Thag is a Crest."),
- ], rel=[(6, "Rosetta Thag.")]),
+  (6, "A human race with no eyebrows. Rosetta Thagra is a Crest."),
+ ], rel=[(6, "Rosetta Thagra.")]),
 
 E("Caprid", "Alien race", [
   (2, "Walking, talking goat people. Prepotente is a caprid crawler."),
@@ -173,7 +173,7 @@ E("Nodling", "Race", [
 
 E("Primal", "Race", [
   (2, "Carl's crawler race, picked from the very bottom of the menu. A Primal crawler from an old season was shown with white, wispy angel wings and a lightning sword."),
-  (7, "Mordecai suspects Carl's success is the communal nature of the Primal race."),
+  (7, "Victory suspects the communal nature of the Primal race explains Carl's consciousness jump."),
  ], rel=[(2, "Carl.")]),
 
 E("Primal Engine", "Galactic tech", [

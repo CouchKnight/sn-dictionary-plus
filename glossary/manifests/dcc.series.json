@@ -1,0 +1,191 @@
+{
+  "series": "Dungeon Crawler Carl",
+  "books": [
+    {
+      "n": 1,
+      "title": "Dungeon Crawler Carl",
+      "match": [
+        "dungeon crawler carl"
+      ]
+    },
+    {
+      "n": 2,
+      "title": "Carl's Doomsday Scenario",
+      "match": [
+        "doomsday scenario"
+      ]
+    },
+    {
+      "n": 3,
+      "title": "The Dungeon Anarchist's Cookbook",
+      "match": [
+        "anarchist"
+      ]
+    },
+    {
+      "n": 4,
+      "title": "The Gate of the Feral Gods",
+      "match": [
+        "feral gods"
+      ]
+    },
+    {
+      "n": 5,
+      "title": "The Butcher's Masquerade",
+      "match": [
+        "butcher"
+      ]
+    },
+    {
+      "n": 6,
+      "title": "The Eye of the Bedlam Bride",
+      "match": [
+        "bedlam bride"
+      ]
+    },
+    {
+      "n": 7,
+      "title": "This Inevitable Ruin",
+      "match": [
+        "inevitable ruin"
+      ]
+    },
+    {
+      "n": 8,
+      "title": "A Parade of Horribles",
+      "match": [
+        "parade of horribles"
+      ]
+    }
+  ],
+  "layers": [
+    {
+      "dict": "DCC thru Book 1 · 25%",
+      "covers": 0.25
+    },
+    {
+      "dict": "DCC thru Book 1 · 50%",
+      "covers": 0.5
+    },
+    {
+      "dict": "DCC thru Book 1 · 75%",
+      "covers": 0.75
+    },
+    {
+      "dict": "DCC thru Book 1",
+      "covers": 1.0
+    },
+    {
+      "dict": "DCC thru Book 2 · 25%",
+      "covers": 1.25
+    },
+    {
+      "dict": "DCC thru Book 2 · 50%",
+      "covers": 1.5
+    },
+    {
+      "dict": "DCC thru Book 2 · 75%",
+      "covers": 1.75
+    },
+    {
+      "dict": "DCC thru Book 2",
+      "covers": 2.0
+    },
+    {
+      "dict": "DCC thru Book 3 · 25%",
+      "covers": 2.25
+    },
+    {
+      "dict": "DCC thru Book 3 · 50%",
+      "covers": 2.5
+    },
+    {
+      "dict": "DCC thru Book 3 · 75%",
+      "covers": 2.75
+    },
+    {
+      "dict": "DCC thru Book 3",
+      "covers": 3.0
+    },
+    {
+      "dict": "DCC thru Book 4 · 25%",
+      "covers": 3.25
+    },
+    {
+      "dict": "DCC thru Book 4 · 50%",
+      "covers": 3.5
+    },
+    {
+      "dict": "DCC thru Book 4 · 75%",
+      "covers": 3.75
+    },
+    {
+      "dict": "DCC thru Book 4",
+      "covers": 4.0
+    },
+    {
+      "dict": "DCC thru Book 5 · 25%",
+      "covers": 4.25
+    },
+    {
+      "dict": "DCC thru Book 5 · 50%",
+      "covers": 4.5
+    },
+    {
+      "dict": "DCC thru Book 5 · 75%",
+      "covers": 4.75
+    },
+    {
+      "dict": "DCC thru Book 5",
+      "covers": 5.0
+    },
+    {
+      "dict": "DCC thru Book 6 · 25%",
+      "covers": 5.25
+    },
+    {
+      "dict": "DCC thru Book 6 · 50%",
+      "covers": 5.5
+    },
+    {
+      "dict": "DCC thru Book 6 · 75%",
+      "covers": 5.75
+    },
+    {
+      "dict": "DCC thru Book 6",
+      "covers": 6.0
+    },
+    {
+      "dict": "DCC thru Book 7 · 25%",
+      "covers": 6.25
+    },
+    {
+      "dict": "DCC thru Book 7 · 50%",
+      "covers": 6.5
+    },
+    {
+      "dict": "DCC thru Book 7 · 75%",
+      "covers": 6.75
+    },
+    {
+      "dict": "DCC thru Book 7",
+      "covers": 7.0
+    },
+    {
+      "dict": "DCC thru Book 8 · 25%",
+      "covers": 7.25
+    },
+    {
+      "dict": "DCC thru Book 8 · 50%",
+      "covers": 7.5
+    },
+    {
+      "dict": "DCC thru Book 8 · 75%",
+      "covers": 7.75
+    },
+    {
+      "dict": "DCC thru Book 8",
+      "covers": 8.0
+    }
+  ]
+}

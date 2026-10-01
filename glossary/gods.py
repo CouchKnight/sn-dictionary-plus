@@ -21,7 +21,7 @@ E("Taranis", "God – thunder", [
   (8, "Big brother of Emberus, Hellik and Eris, and married to Apito, who is also his mother. Yarilo is his child. He magically protects Penelope the pig."),
  ], rel=[
   (3, "Father of Grull."), (4, "Older brother of Emberus and Hellik."), (5, "Husband of Apito."),
-  (6, "Half-brother, uncle and former lover of Eris."), (8, "Son of Apito; father of Yarilo."),
+  (6, "Half-brother, uncle and former lover of Ysalte."), (7, "Half-brother of Eris."), (8, "Son of Apito; father of Yarilo."),
  ], aliases={4: ["God of Thunder"]}),
 
 E("Apito", "Goddess – oak/mother", [
@@ -54,7 +54,7 @@ E("Emberus", "God – sun and ash", [
   (8, "Warns Carl that if Carl kills Hellik, Emberus will kill him for completing the quest."),
  ], rel=[
   (4, "Twin of Hellik (enemies); younger brother of Taranis; father of Geyrun; Carl is his adherent."),
-  (6, "Half-brother of Eris."), (8, "Cleric: Pater Coal."),
+  (8, "Brother of Eris."), (8, "Cleric: Pater Coal."),
  ], aliases={4: ["Emberus the Fire God", "god of sun and ash"]}),
 
 E("Hellik", "God – sun and life", [
@@ -62,17 +62,16 @@ E("Hellik", "God – sun and life", [
   (5, "Carl gets a bonus for killing Hellik's worshippers. A Temple of Hellik appears on the 6th floor."),
   (6, "His worshippers include the ram-like Ares Warrior Clerics (Potsy). He is the main suspect in Geyrun's murder, but had an alibi."),
   (7, "Mork and the rams put a Holy Crusade bounty on Prepotente. Hellik makes Carl a \"friend of the church\" and tells him: he didn't kill Emberus's son, and Apito \"has been corrupted.\""),
- ], rel=[(4, "Twin and enemy of Emberus; younger brother of Taranis."), (6, "Half-brother of Eris.")],
+ ], rel=[(4, "Twin and enemy of Emberus; younger brother of Taranis."), (8, "Brother of Eris.")],
  aliases={4: ["God of Sun and Life", "red brother"]}),
 
 E("Eris", "Goddess – chaos", [
   (1, "Goddess of Chaos (mentioned in a mob description)."),
   (3, "A big god, always sponsored by some rich player."),
   (5, "Known for parties."),
-  (6, "Half-sister and niece of her former lover, Taranis."),
   (7, "Mother to nobody, lover of parties and drinking, the Ascendency's worst gossip (\"a wine aunt\"). Sponsored by the influencer Nami this season. On the 9th floor she casts Bear Witness, and ends up trapped in a ball with the feral god Meatus, used against Harpocrates."),
   (8, "Returns at level 251; her presence has a random chaotic effect. Akuma: \"Eris knows everything.\""),
- ], rel=[(6, "Half-sister, niece and former lover of Taranis."), (7, "Driven by Nami.")],
+ ], rel=[(7, "Half-sister of Taranis."), (7, "Driven by Nami.")],
  aliases={1: ["Goddess of Chaos"]}),
 
 E("Diwata", "Goddess – forest", [
@@ -110,7 +109,7 @@ E("Orthrus", "Divine beast", [
 E("Psamathe", "Lesser deity", [
   (4, "A banished lesser deity (Samantha to her friends), accompanied by an ooze familiar. Her father banished her to the Nothing for consorting with an ancient king. She duped Carl by pretending to be Yarilo and took over the necropolis ghost Queen Quetzalcoatlus; she survives as a disembodied sex-doll head that travels with the party."),
   (5, "Half-naiad; calls herself \"long-lost daughter of the confederacy.\" Signet gives Carl a body meant for her."),
-  (6, "Her mother is a goddess."),
+  (7, "Her mother is a goddess."),
   (7, "Her mother is the goddess Theia. She claims a hand in Geyrun's death. Carl wonders if the War Mages' \"Scavenger's Daughter\" is her daughter."),
  ], rel=[(4, "Companion of Carl and Donut."), (5, "Naiad Confederacy ties; Signet is kin."), (7, "Daughter of Theia.")],
  aliases={4: ["Samantha"]}),
@@ -154,7 +153,7 @@ E("Yemaya", "Goddess – rivers", [
 E("Ysalte", [(4, "Goddess"), (6, "Goddess – hopelessness")], [
   (4, "One of the gods summoned through the Gate on the 5th floor: \"the Vinegar Bitch.\""),
   (6, "Goddess of Hopelessness and Insanity (earlier of the Dirt, then of Tears), worshipped by the earliest citizens of Larracos and sponsored by Pontifex Shine of the Nebular Balance. Slain by Paz, producing a Memorial Crystal."),
- ], rel=[(6, "Former girlfriend of Amayon and mother of his child; killed by Paz.")],
+ ], rel=[(6, "Former girlfriend of Amayon and mother of his child; killed by Paz."), (6, "Half-sister, niece and former lover of Taranis; fled to Sheol when Apito threatened her with the Nothing.")],
  aliases={4: ["Vinegar Bitch"]}),
 
 E("Amayon", "Demon prince", [
@@ -235,8 +234,8 @@ E("Memorial Crystal", "Item / divine lore", [
 E("Ascendency family tree", "Relations overview", [
   (3, "Taranis + Apito &rarr; Grull (war). Old goddess Nekhebit was abandoned by the elves for Apito."),
   (4, "Taranis's brothers: Emberus and Hellik (twin sun gods, mortal enemies). Emberus &rarr; son Geyrun (murdered; dog Orthrus). Psamathe (Samantha) was banished by her father."),
-  (6, "Eris: half-sister, niece and ex-lover of Taranis. Eileithyia &larr; retainer/friend Yemaya. Demon prince Amayon + Ysalte &rarr; a child."),
-  (7, "Theia &rarr; daughter Samantha. Khnum/Adrasteia &larr; retainer Khepri."),
+  (6, "Ysalte: half-sister, niece and ex-lover of Taranis. Eileithyia &larr; retainer/friend Yemaya. Demon prince Amayon + Ysalte &rarr; a child."),
+  (7, "Eris: half-sister of Taranis. Theia &rarr; daughter Samantha. Khnum/Adrasteia &larr; retainer Khepri."),
   (8, "Nekhebit &rarr; Apito, Scolopendra and an unnamed son. Apito is also Taranis's mother. Taranis &rarr; Yarilo."),
  ], aliases={4: ["pantheon"]}),
 
