@@ -14,6 +14,7 @@
 import {AppRegistry} from 'react-native';
 import App from './App';
 import {name as appName} from './app.json';
+import {pluginID} from './PluginConfig.json';
 import {
   FileUtils,
   NativeUIUtils,
@@ -159,8 +160,10 @@ const ensureSdcardPermission = async () => {
 // is .../com.ratta.supernote.pluginhost/files, NOT a guessable absolute
 // path — the old hardcoded com.ratta.supernote path was wrong). base.db
 // ships in the .snplg and the host extracts it here; user.db + imported
-// slug DBs are created in place by the native layer.
-const PLUGIN_LOCATION = 'plugins/sndictdfltbasev1/';
+// slug DBs are created in place by the native layer. The id comes from
+// PluginConfig.json so a fork with a new pluginID can never open (and
+// lock) another install's DBs.
+const PLUGIN_LOCATION = `plugins/${pluginID}/`;
 
 const openDbByName = name => openRnSqliteDb({name, location: PLUGIN_LOCATION});
 
