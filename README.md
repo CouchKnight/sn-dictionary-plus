@@ -278,9 +278,9 @@ npm install
 ## Installing on the device
 
 1. Build the plugin (`./buildPlugin.sh` on macOS/Linux, `.\buildPlugin.ps1` on Windows) or download `SnDictPlus.snplg` from the [latest release](https://github.com/CouchKnight/sn-dictionary-plus/releases).
-2. Use the Supernote Partner App to copy `build/outputs/SnDictPlus.snplg` to the `MyStyles` folder on your device.
+2. Use the Supernote Partner App to copy `build/outputs/SnDictPlus.snplg` to the `MyStyle` folder on your device.
 3. On the Supernote, navigate to **Settings → Apps → Plugins → Add Plugin** and select the file.
-4. Plugin appears as **Dictionary** (or 词典 / 詞典 / 辞書 / พจนานุกรม / Woordenboek depending on your device locale).
+4. Plugin appears as **Dictionary+** (or 词典+ / 詞典+ / 辞書+ / พจนานุกรม+ / Woordenboek+ / Wörterbuch+ depending on your device locale).
 
 ## Running tests
 
