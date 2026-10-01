@@ -173,7 +173,7 @@ E("Nodling", "Race", [
 
 E("Primal", "Race", [
   (2, "Carl's crawler race, picked from the very bottom of the menu. A Primal crawler from an old season was shown with white, wispy angel wings and a lightning sword."),
-  (7, "Mordecai suspects Carl's success is the communal nature of the Primal race."),
+  (7, "Victory suspects the communal nature of the Primal race explains Carl's consciousness jump."),
  ], rel=[(2, "Carl.")]),
 
 E("Primal Engine", "Galactic tech", [

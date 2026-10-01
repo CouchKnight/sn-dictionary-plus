@@ -285,7 +285,7 @@ E("Rosetta", "Former crawler", [
   (6, "A Crest with her own show."),
   (7, "Rosetta of the Shadow Boxer show, author of the 7th edition; joins the Princess Posse."),
   (8, "Explains the Scavenger myth."),
- ], rel=[(7, "Ally of Tipid.")], aliases={6: ["Rosetta Thagra"]}),
+ ], rel=[(7, "Ally of Tipid.")], aliases={6: ["Rosetta Thagra"], 7: ["Rosetta Thag"]}),
 
 E("Boomer", "Former crawler", [(7, "Former crawler leading the 106th Bloody Leeches; a Princess Posse colonel.")]),
 
