@@ -112,3 +112,8 @@ logcat.txt
 
 # Local specs / planning docs (not committed)
 spec/
+
+# Series glossary: book text must never be committed (public repo).
+glossary/txt/
+glossary/out/
+*.epub
