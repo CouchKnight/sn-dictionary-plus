@@ -2321,7 +2321,7 @@ const exportActions = (
     failed: [],
     targetDir,
   }),
-  listFolders: PopupActions['listFolders'] = async () => [`${MYSTYLE}/SnDict`],
+  listFolders: PopupActions['listFolders'] = async () => [`${MYSTYLE}/SnDictPlus`],
   createFolder: PopupActions['createFolder'] = async () => true,
   listExportableDbs: PopupActions['listExportableDbs'] = async () =>
     [
@@ -2354,16 +2354,16 @@ describe('DefinitionPopup — DB export (F5)', () => {
   });
 
   test('the chooser lists subfolders and descends on tap (F5-FR2)', async () => {
-    setPopupActions(exportActions(undefined, async () => [`${MYSTYLE}/SnDict`]));
+    setPopupActions(exportActions(undefined, async () => [`${MYSTYLE}/SnDictPlus`]));
     const tree = renderPopup();
     await openSettings(tree);
-    // The SnDict subfolder is listed; tapping it descends into it.
+    // The SnDictPlus subfolder is listed; tapping it descends into it.
     await act(async () => {
-      findByLabel(tree, 'Use this folder: SnDict')[0].props.onPress();
+      findByLabel(tree, 'Use this folder: SnDictPlus')[0].props.onPress();
       await flush();
     });
-    // Current path is now MyStyle/SnDict.
-    expect(collectText(tree)).toContain(`${MYSTYLE}/SnDict`);
+    // Current path is now MyStyle/SnDictPlus.
+    expect(collectText(tree)).toContain(`${MYSTYLE}/SnDictPlus`);
   });
 
   test('the section is absent when the export ports are not wired', async () => {
@@ -2479,16 +2479,16 @@ describe('DefinitionPopup — DB export (F5)', () => {
   });
 
   test('Up navigates back to the parent after descending', async () => {
-    setPopupActions(exportActions(undefined, async () => [`${MYSTYLE}/SnDict`]));
+    setPopupActions(exportActions(undefined, async () => [`${MYSTYLE}/SnDictPlus`]));
     const tree = renderPopup();
     await openSettings(tree);
     await act(async () => {
-      findByLabel(tree, 'Use this folder: SnDict')[0].props.onPress();
+      findByLabel(tree, 'Use this folder: SnDictPlus')[0].props.onPress();
       await flush();
     });
     // Up row appears below root; tap it to go back to MyStyle.
     await act(async () => {
-      findByLabel(tree, `Move up: ${MYSTYLE}/SnDict`)[0].props.onPress();
+      findByLabel(tree, `Move up: ${MYSTYLE}/SnDictPlus`)[0].props.onPress();
       await flush();
     });
     // Back at the root: the Up row is gone (atRoot hides it).
@@ -2517,8 +2517,8 @@ describe('DefinitionPopup — DB export (F5)', () => {
     const tree = renderPopup();
     await openSettings(tree);
     expect(collectText(tree)).toContain('Export dictionaries');
-    // No SnDict subfolder row (listFolders never ran).
-    expect(findByLabel(tree, 'Use this folder: SnDict')).toHaveLength(0);
+    // No SnDictPlus subfolder row (listFolders never ran).
+    expect(findByLabel(tree, 'Use this folder: SnDictPlus')).toHaveLength(0);
   });
 
   test('a createFolder resolving false does NOT descend (stays at root)', async () => {

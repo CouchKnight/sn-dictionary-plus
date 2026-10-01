@@ -1,6 +1,6 @@
 # PowerShell build script — Windows counterpart to buildPlugin.sh.
 #
-# Both scripts produce the same artifact (build/outputs/SnDict.snplg)
+# Both scripts produce the same artifact (build/outputs/SnDictPlus.snplg)
 # and run the same logical steps: prepare base dictionary -> Metro
 # bundle -> sync versions into PluginConfig.json -> detect ReactPackages
 # -> (optionally) build APK -> zip & rename to .snplg. Keep them in
