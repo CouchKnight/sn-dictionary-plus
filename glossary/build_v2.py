@@ -20,7 +20,7 @@ from gods import GODS
 from races import RACES
 from orgs import ORGS
 from chars import CHARS
-from skills import SPELLS
+from skills import SPELLS, CLASSES
 from items import ITEMS
 from bestiary import BEASTS
 from floors import FLOORS
@@ -98,7 +98,7 @@ def esc(t):
 
 def all_entries():
     seen, out = {}, []
-    for grp in (GODS, RACES, ORGS, CHARS, SPELLS, ITEMS, BEASTS, FLOORS, MECHANICS):
+    for grp in (GODS, RACES, ORGS, CHARS, SPELLS, ITEMS, BEASTS, FLOORS, MECHANICS, CLASSES):
         for e in grp:
             k = norm(e.head)
             if k in seen:

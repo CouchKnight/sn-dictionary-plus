@@ -205,3 +205,141 @@ E("Gatekeeper", "Spell", [
   (8, "Donut's Advance Reader Copy tome, \"street date\" 12th floor; 75 mana, and it can target opponents, NPCs, deities and \"OI entities.\""),
  ]),
 ]
+
+# Classes (and a few crawler races not covered in races.py), by character.
+CLASSES = [
+# ---------------- Carl ----------------
+E("Compensated Anarchist", "Class", [
+  (2, "Carl's 3rd-floor class, an Earth class built around traps and bombs: the Fear spell, trap- and bomb-making skills, and access to the Desperado Club and the Naughty Boys Employment Agency."),
+ ]),
+E("Agent Provocateur", "Class", [
+  (5, "The specialty Carl picks for Compensated Anarchist on the 6th floor: the ultimate saboteur, focused on mass-casualty bombs, with extra intelligence and an advanced Bomb Maker's Workshop."),
+ ]),
+E("Bomb Squad Tech", "Class", [
+  (2, "An exclusive explosives class offered to Carl (it needs the Boom! achievement); he picks Compensated Anarchist instead."),
+ ]),
+# ---------------- Donut ----------------
+E("Former Child Actor", "Class", [
+  (2, "Donut's rare 3rd-floor class, an offshoot of Character Actor for crawlers with the \"Cut!\" achievement and a trillion views; a Charisma and chance-based comeback class."),
+ ]),
+E("Artist Alley Mogul", "Class", [
+  (2, "A merchant class offered to Donut; she later takes it as her 3rd-floor specialty, though she misses out on most of its usable benefits."),
+ ]),
+E("Glass Cannon", "Class", [
+  (4, "A class Donut picks on the 5th floor: a big base Constitution bonus, cheaper spells and faster spell training, but no Constitution from level-ups."),
+ ]),
+E("Viper Queen", "Class", [
+  (5, "The class Donut grabs at the very end of the 6th floor without reading it."),
+  (6, "She was only a Viper Queen for a few minutes before the floor was skipped."),
+ ]),
+E("Gurkha", "Class", [
+  (8, "Elite Gurkha Warrior: a melee warrior class with a Perpetual Tank subclass and upgrades for pets and mercenaries; Mordecai suggests it for Donut."),
+ ], aliases={8: ["Elite Gurkha Warrior"]}),
+# ---------------- Party and friends ----------------
+E("Monster Truck Driver", "Class", [
+  (2, "Katia's class."),
+  (5, "The 6th floor adds an \"endorsement\" without changing the class name."),
+ ]),
+E("Blizzardmancer", "Class", [
+  (2, "Elle McGib's ice-caster class."),
+ ]),
+E("Tundra Princess", "Class", [
+  (5, "Elle's class after Blizzardmancer: earth combined with ice."),
+ ]),
+E("Fire Spiritualist", "Class", [
+  (3, "Imani's class."),
+ ]),
+E("Swashbuckler", "Class", [
+  (2, "Bautista's class."),
+ ]),
+E("Street Monk", "Class", [
+  (2, "Li Jun's class."),
+ ]),
+E("Pest Exterminator", "Class", [
+  (4, "Louis's class."),
+ ]),
+E("Hammersmith", "Class", [
+  (4, "Firas's class."),
+ ]),
+E("Boring Ol' Fighter", "Class", [
+  (4, "Gwendolyn Duet's class; it trades all magic for fighting skills."),
+ ]),
+E("D-Bag Geek", "Class", [
+  (4, "Low Thi's class."),
+ ]),
+# ---------------- Top-ten crawlers and rivals ----------------
+E("Black Inquisitor General", "Class", [
+  (2, "Lucia Mar's class; she tops the first bounty board."),
+ ]),
+E("Shieldmaiden", "Class", [
+  (2, "Hekla's class."),
+ ]),
+E("Forsaken Aerialist", "Class", [
+  (2, "Prepotente's class."),
+ ]),
+E("Profane Vitiate", "Class", [
+  (5, "Prepotente's class after Forsaken Aerialist."),
+ ]),
+E("Shepherd", "Class", [
+  (2, "Miriam Dom's class."),
+ ]),
+E("Shotgun Messenger", "Class", [
+  (2, "Florin's class."),
+ ]),
+E("Physicker", "Class", [
+  (2, "Ifechi's class."),
+ ]),
+E("Imperial Security Trooper", "Class", [
+  (3, "Quan Ch's class."),
+ ]),
+E("Sergeant-at-Arms", "Class", [
+  (5, "Quan Ch's class after Imperial Security Trooper; Donut jokes that, one-armed, it should be \"Sergeant-at-Arm.\""),
+ ], aliases={5: ["Sergeant at Arms"]}),
+E("Illusionist", "Class", [
+  (4, "Dmitri Popov's class (his brother Maxim is a Bogatyr)."),
+ ]),
+E("Visionary", "Class", [
+  (5, "Dmitri Popov's class after Illusionist."),
+ ]),
+E("Bogatyr", "Class", [
+  (4, "Maxim Popov's class."),
+ ]),
+E("Legatus", "Class", [
+  (4, "Bogdon Ro's class."),
+ ]),
+E("Sacred Paladin", "Class", [
+  (4, "Chirag Ali's class."),
+ ]),
+E("Nimblefoot Enforcer", "Class", [
+  (3, "Eva Sigrid's class."),
+ ]),
+E("Blood Assassin", "Class", [
+  (3, "Frank Q's class."),
+ ]),
+E("Zulu Warrior", "Class", [
+  (4, "Chris Andrews's class."),
+ ]),
+E("Santero", "Class", [
+  (6, "Paz Lo's class."),
+ ]),
+E("Poet Laureate", "Class", [
+  (6, "Sister Ines Quiteria's class."),
+ ]),
+# ---------------- Races missing from races.py ----------------
+E("Obsidian Butterfly", "Race", [
+  (3, "Imani's race."),
+ ]),
+E("Night Elf", "Race", [
+  (3, "Frank Q's race."),
+ ]),
+E("Igneous", "Race", [
+  (4, "Chris Andrews's race."),
+ ]),
+E("Half Elf", "Race", [
+  (3, "Quan Ch's race."),
+ ]),
+E("Cat Girl", "Race", [
+  (2, "Mentioned as a race some crawlers pick."),
+  (6, "Sister Ines Quiteria's race."),
+ ], aliases={2: ["cat girls"]}),
+]
