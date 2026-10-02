@@ -15,7 +15,7 @@ E("Borant Corporation", "Corporation", [
   (1, "The kua-tin company granted regency over Earth's solar system. It chose \"option 3,\" the 18-level World Dungeon, and holds all broadcast rights."),
   (2, "It owns the mobs and NPCs it engineers; the Valtay are trying to collect a debt from the Borant System."),
   (3, "Borant vetoes things and may try to get Carl killed faster; dungeon-born pets are Borant property."),
-  (5, "A Syndicate court declares the Borant Corporation independent of the Borant System Government, and a prior ruling hands the Valtay Corporation 51% ownership. Zev is promoted."),
+  (5, "A Syndicate court declares the Borant Corporation independent of the Borant System Government, and a prior ruling hands the Valtay Corporation 51% ownership."),
   (6, "The Borant Corporation will be liquidated after the crawl no matter what."),
  ], rel=[(1, "Staff: Zev."), (3, "Loita."), (5, "Majority owner: Valtay.")], aliases={1: ["Borant", "Borant System"], 5: ["Borant System Government"]}),
 
@@ -24,7 +24,7 @@ E("Valtay Corporation", "Corporation", [
   (2, "Contracted to keep the dead singer Manasa's career going; creditor of the Borant System."),
   (3, "Carl's first sponsor."),
   (5, "Carl loses the Valtay sponsorship when it takes 51% of the Borant Corporation."),
- ], rel=[(3, "Carl's sponsor (until Book 5)."), (4, "See Valtay.")]),
+ ], rel=[(3, "Carl's sponsor."), (4, "See Valtay."), (5, "Drops Carl as a sponsor.")]),
 
 E("Skull Empire", "Orc empire", [
   (1, "The great orc empire. Prince Maestro boasts that his family's Skull Clan has won six of the last ten Faction Wars."),
@@ -76,7 +76,7 @@ E("Open Intellect Pacifist Action Network", "Non-profit", [
   (5, "It sends potions meant for Donut; a note signed \"P. Hu\" coordinates them."),
   (6, "Comprised of former crawlers who want to see the crawl fail."),
   (7, "Doctor Hu also runs the Crawler Project, helping released crawlers. The Open Intellect's agent Rectrix drives the goddess Theia."),
- ], rel=[(5, "Dr. Hu.")], aliases={4: ["Pacifist Network", "Open Intellect Pacifist Network"], 7: ["Crawler Project", "Dr. Hu"]}),
+ ], rel=[(7, "Dr. Hu.")], aliases={4: ["Pacifist Network", "Open Intellect Pacifist Network"], 7: ["Crawler Project", "Dr. Hu"]}),
 
 E("Princess Posse", [(3, "Fan base"), (5, "Team/fan corp")], [
   (3, "Donut's fan base."),

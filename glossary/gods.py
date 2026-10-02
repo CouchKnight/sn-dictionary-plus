@@ -48,7 +48,7 @@ E("Grull", "God – war", [
 
 E("Emberus", "God – sun and ash", [
   (4, "Sun and Ash God (\"Emberus the Fire God\"), a locked god with no sponsor this season. He rampages across the 5th floor looking for his dead son's dog Orthrus. Carl becomes his adherent and gets two quests: Kill Hellik, and find out who murdered his son Geyrun."),
-  (5, "Carl gets Emberus tattoos and owes the Emberus shrine blood and gold. Adherents get bonus damage against adherents of Diwata, and Carl gets a bonus for killing worshippers of Hellik."),
+  (5, "Carl gets Emberus tattoos. Adherents get bonus damage against adherents of Diwata, and Carl gets a bonus for killing worshippers of Hellik."),
   (6, "Carl must question the high cleric at the Emberus Shrine in Club Vanquisher about Geyrun's murder."),
   (7, "Enters the 9th floor in a fury; Hellik's message only enrages him further."),
   (8, "Warns Carl that if Carl kills Hellik, Emberus will kill him for completing the quest."),
@@ -75,7 +75,7 @@ E("Eris", "Goddess – chaos", [
  aliases={1: ["Goddess of Chaos"]}),
 
 E("Diwata", "Goddess – forest", [
-  (5, "A minor forest goddess (switches between female and male). On the 6th floor her temple and birth use a captured hunter; she is sponsored and driven by Circe Took of the Dark Hive. Carl smashes her shrine and becomes Enemy of the Church. \"One of Apito's brood, but not a direct child.\""),
+  (5, "A minor forest goddess. On the 6th floor her temple and birth use a captured hunter; she is sponsored and driven by Circe Took of the Dark Hive. Carl smashes her shrine and becomes Enemy of the Church. \"One of Apito's brood, but not a direct child.\""),
   (6, "Circe was angry enough to fly to Earth and play as Diwata."),
   (8, "Her worshippers (e.g. fairies born of fairies and forest animals) are automatically hostile to Carl."),
  ], rel=[(5, "Driven by Circe Took; enemy of Emberus's adherents (Carl).")]),
@@ -108,10 +108,10 @@ E("Orthrus", "Divine beast", [
 
 E("Psamathe", "Lesser deity", [
   (4, "A banished lesser deity (Samantha to her friends), accompanied by an ooze familiar. Her father banished her to the Nothing for consorting with an ancient king. She duped Carl by pretending to be Yarilo and took over the necropolis ghost Queen Quetzalcoatlus; she survives as a disembodied sex-doll head that travels with the party."),
-  (5, "Half-naiad; calls herself \"long-lost daughter of the confederacy.\" Signet gives Carl a body meant for her."),
+  (5, "Half-naiad; calls herself \"long-lost daughter of the confederacy.\""),
   (7, "Her mother is a goddess."),
   (7, "Her mother is the goddess Theia. She claims a hand in Geyrun's death. Carl wonders if the War Mages' \"Scavenger's Daughter\" is her daughter."),
- ], rel=[(4, "Companion of Carl and Donut."), (5, "Naiad Confederacy ties; Signet is kin."), (7, "Daughter of Theia.")],
+ ], rel=[(4, "Companion of Carl and Donut."), (5, "Half-naiad, like Signet."), (7, "Daughter of Theia.")],
  aliases={4: ["Samantha"]}),
 
 E("Theia", "Goddess", [

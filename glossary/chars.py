@@ -19,7 +19,7 @@ E("Princess Donut", "Crawler", [
   (2, "Class: Former Child Actor; a magic-missile caster and fan favourite. Her grandmother Princess Chonkalot is on Bea's tattoo."),
   (3, "Sponsored by Princess D'nadia."),
   (4, "Sponsored by the toy company Veriluxx."),
-  (5, "Sponsored by the Apothecary. Briefly a Viper Queen. Co-warlord of the Princess Posse."),
+  (5, "Sponsored by the Apothecary. Picks the Viper Queen class. Co-warlord of the Princess Posse."),
   (7, "Named Champion of Nekhebit. D'nadia sold her sponsorship."),
   (8, "Assassin of Sekhmet; class Gurkha."),
  ], rel=[(1, "Owner Beatrice; Carl; pet Mongo; manager Mordecai; first love Ferdinand."), (5, "Minion Kiwi.")],
@@ -36,14 +36,15 @@ E("Mongo", "Pet", [
 E("Katia Grim", "Crawler", [
   (2, "Crawler whose race is Doppelganger: she can reshape her body."),
   (3, "From Iceland. Member of Hekla's Brynhild's Daughters. On the 4th-floor train she accidentally kills Hekla, then joins Carl and Donut. Sponsored by Princess Formidable. Class Monster Truck Driver."),
-  (4, "Formidable sends her a bolt meant for Prince Maestro."),
+  (4, "Receives an emergency countermeasure box from Princess Formidable."),
   (5, "She opened the Gate of the Feral Gods onto Larracos, flooding it with sharks and jellyfish. Sponsored by the Apothecary."),
   (6, "Leaves the party to hunt down her ex-best friend Eva Sigrid, and kills her. With Carl, assassinates Astrid."),
   (7, "Worships Eileithyia; has a deal with Huanxin Jinx for the goddess. Also bound to the Blood Sultanate succession."),
  ], rel=[(3, "Party member of Carl and Donut; sponsor Formidable."), (6, "Killed Eva Sigrid.")], aliases={2: ["Katia"]}),
 
 E("Mordecai", "Game guide / manager", [
-  (1, "NPC game guide. Born a skyfowl, he became a Changeling on floor 3 of his own crawl (a Changeling Fire Mage Arcanist). He is reshaped into a new local mob each floor."),
+  (1, "NPC game guide. Born a skyfowl, he became a Changeling on floor 3 of his own crawl. He is reshaped into a new local mob each floor."),
+  (1, "In his own crawl he was a Changeling Fire Mage Arcanist."),
   (3, "Forms include a Grulke infantryman."),
   (5, "Takes a Pocket Kuma form."),
   (6, "On his own 10th floor, his brother Uzzi died: Chaco used the Dart of Ophiotaurus to trap and kill the sponsored goddess Dodola after Odette's illegal deal with Huanxin Jinx went wrong. Odette was his manager. He reached the 11th floor before taking an exit deal."),
@@ -60,11 +61,11 @@ E("Beatrice", "Earth human", [
 
 # ---------------- Crawlers ----------------
 E("Imani C", "Crawler", [
-  (1, "A nurse at the Meadow Lark retirement home who helps shelter its residents (and mercy-kills some)."),
+  (1, "A nurse at the Meadow Lark retirement home who helps shelter its residents."),
   (3, "Leads team Meadow Lark with Elle."),
-  (5, "Coordinates the guild."),
+  (5, "Becomes guildmaster of Safehome Yolanda."),
   (8, "Spearheads the guild's big planning efforts."),
- ], rel=[(1, "Partner Elle; with Yolanda, Brandon and Chris.")], aliases={1: ["Imani"]}),
+ ], rel=[(1, "With Yolanda, Brandon and Chris."), (3, "Teams up with Elle.")], aliases={1: ["Imani"]}),
 
 E("Elle McGib", "Crawler", [
   (1, "An elderly woman in a wheelchair Carl helps into the storm shelter (Elle McGibbons)."),
@@ -72,7 +73,7 @@ E("Elle McGib", "Crawler", [
   (3, "A former Meadow Lark resident; Mistress Tiatha is her guide."),
   (5, "Class becomes Tundra Princess."),
   (8, "The war mages beat her up and steal the Gate of the Feral Gods from her."),
- ], rel=[(1, "Partner Imani."), (3, "Guide/manager Mistress Tiatha.")], aliases={1: ["Elle"]}),
+ ], rel=[(3, "Teams up with Imani."), (3, "Guide/manager Mistress Tiatha.")], aliases={1: ["Elle"]}),
 
 E("Brandon An", "Crawler", [
   (1, "Meadow Lark maintenance worker who helps defend the residents."),
@@ -87,13 +88,14 @@ E("Chris Andrews", "Crawler", [
  ], rel=[(1, "Brother of Brandon."), (4, "Controlled by Maggie My.")], aliases={1: ["Chris"]}),
 
 E("Yolanda Martinez", "Crawler", [
-  (1, "A tiny, fierce Meadow Lark nurse of about fifty who dies protecting the group from the Rage Elemental."),
+  (1, "A tiny, fierce Meadow Lark nurse of about fifty."),
+  (1, "Dies protecting the group from the Rage Elemental."),
   (5, "The guild Safehome Yolanda is named for her."),
  ], aliases={1: ["Yolanda"]}),
 
 E("Agatha", [(1, "Crawler"), (6, "Crawler / Residual")], [
-  (1, "A homeless, shopping-cart-pushing floor-1 crawler who kills mobs Carl finds."),
-  (4, "Orren suspects Agatha and Odette of helping Carl."),
+  (1, "A homeless, shopping-cart-pushing floor-1 crawler."),
+  (4, "Orren tells Carl she and Odette are not his outside source."),
   (6, "A Residual, Agent number 22, \"a different kind\" from Paulie."),
   (7, "Named warlord of the War Mage Rebellion, to Akuma's dislike; later deemed to have abandoned her post."),
   (8, "Akuma tells Carl he has to kill Agatha."),
@@ -128,7 +130,7 @@ E("Li Na", "Crawler", [
 
 E("Zhang", "Crawler", [
   (1, "Li Jun's bald friend."),
-  (3, "Human caster (Dirt Clod); secretly in love with Li Na."),
+  (3, "Human caster (Dirt Clod)."),
  ], rel=[(1, "Best friend of Li Jun.")]),
 
 E("Daniel Bautista", "Crawler", [
@@ -137,16 +139,16 @@ E("Daniel Bautista", "Crawler", [
  ], aliases={2: ["Bautista"]}),
 
 E("Louis Santiago", "Crawler", [
-  (4, "Energetic level-22 Pest Exterminator; best friend of Firas. Has the changeling Juice Box on his lap and \"awakens\" her."),
+  (4, "Energetic level-22 Pest Exterminator who crawls with his friend Firas. Has the changeling Juice Box on his lap."),
   (5, "Obsessed with the photo of Epitome Noflex, the Dream leader's mother. Samantha adores him."),
   (7, "Marries Juice Box."),
   (8, "Breaks up with Juice Box."),
- ], rel=[(4, "Best friend of Firas."), (7, "Husband of Juice Box.")], aliases={4: ["Louis"]}),
+ ], rel=[(4, "Friend of Firas."), (7, "Husband of Juice Box.")], aliases={4: ["Louis"]}),
 
 E("Firas M", "Crawler", [
   (4, "Level-22 Hammersmith, Louis's best friend."),
   (5, "Dies on the 6th floor."),
- ], rel=[(4, "Best friend of Louis.")], aliases={4: ["Firas"]}),
+ ], rel=[(4, "Friend of Louis.")], aliases={4: ["Firas"]}),
 
 E("Britney Proskurina", "Crawler", [
   (4, "Human Pit Fighter, last survivor (with the cosmetic surgeon Vadim) of their original party."),
@@ -160,7 +162,7 @@ E("Tran", "Crawler", [
  ], rel=[(4, "Friend of Gwen.")]),
 
 E("Gwendolyn Duet", "Crawler", [
-  (4, "Crawler on the 5th floor; her team looted the gate coordinates off Quetzalcoatlus."),
+  (4, "Level-27 Boring Ol' Fighter in Carl's 5th-floor bubble, on the land quadrant."),
   (5, "Dies at the end of the 6th floor."),
  ], rel=[(4, "Friend of Tran.")], aliases={4: ["Gwen"]}),
 
@@ -312,7 +314,7 @@ E("Armita", "Celestial attendant", [(6, "Odette's friend and former party member
 # ---------------- Off-world aliens / showrunners ----------------
 E("Zev", "Kua-tin admin", [
   (1, "Kua-tin Borant Assistant Communications Representative who handles Carl and Donut's PR; wears a water-filled helmet."),
-  (5, "Promoted after Borant's takeover."),
+  (5, "Warns Carl that things have changed under the new management."),
  ], rel=[(1, "Handler of Carl and Donut.")]),
 
 E("Loita", "Kua-tin admin", [
@@ -325,8 +327,8 @@ E("Mukta", "Kua-tin admin", [
   (7, "Eaten by one of Lucia Mar's dogs."),
  ]),
 
-E("Cascadia", [(5, "Kua-tin"), (7, "Kua-tin showrunner")], [
-  (5, "A kua-tin; \"Cascadia's Screams.\""),
+E("Cascadia", [(5, "Announcer"), (7, "Kua-tin showrunner")], [
+  (5, "Gives the daily updates; an Enchanted Stick of Cascadia's Screams bears her name."),
   (6, "The \"kill, kill, kill\" lady; the 7th floor was her baby."),
   (7, "Showrunner and executive producer of the season."),
  ]),
@@ -378,7 +380,7 @@ E("Stalwart", [(1, "Orc prince"), (7, "Orc king")], [
 
 E("Princess Formidable", "Orc princess", [
   (3, "Youngest sister of Maestro and Stalwart; sponsors Katia."),
-  (4, "Sends Katia a countermeasure (the bolt)."),
+  (4, "Sends Katia an emergency countermeasure box."),
   (6, "At odds with her family."),
   (7, "Third daughter of Rust; tries to kill Carl."),
  ], rel=[(3, "Sponsor of Katia.")], aliases={3: ["Formidable"]}),
@@ -420,7 +422,7 @@ E("Lexis", "Production assistant", [(1, "Odette's production assistant.")]),
 # ---------------- Dungeon NPCs ----------------
 E("Signet", "Elite NPC", [
   (2, "Tsarina Signet: a half-naiad, half-high-elf summoner (bastard of King Finian) in the 3rd-floor circus storyline \"Vengeance of the Daughter.\""),
-  (5, "A coup killed her mother and got her banished; her goal is her half-sister Queen Imogen. She gives Carl a body meant for Samantha. She kills herself to get her revenge on Imogen."),
+  (5, "A coup killed her mother and got her banished; her goal is her half-sister Queen Imogen. She dies in the final battle of the floor."),
   (6, "Grimaldi was her husband."),
  ], rel=[(2, "Daughter of King Finian."), (5, "Half-sister of Imogen.")], aliases={2: ["Tsarina Signet"]}),
 
@@ -431,7 +433,7 @@ E("Queen Imogen", "Country boss", [
 E("King Finian", "High Elf king", [(2, "High-Elf King of the Liana Sector, who bedded women of 5,000 races."), (5, "Dead; he ordered the Pocket Kuma executed.")], rel=[(2, "Father of Signet."), (5, "Father of Imogen.")]),
 
 E("Juice Box", "Changeling NPC", [
-  (4, "A changeling prostitute at a 5th-floor inn whom Louis \"awakens\"; her brother is Henrik."),
+  (4, "A changeling prostitute Louis meets on the 5th floor; her brother is Henrik."),
   (7, "Warlord of Team Retribution, the NPC team; marries Louis."),
   (8, "Louis breaks up with her."),
  ], rel=[(4, "Sister of Henrik."), (7, "Wife of Louis.")]),
@@ -481,10 +483,10 @@ E("Shi Maria", "Card / spider", [
 E("Geraldo", "Card", [(6, "Monk-seal kung-fu totem in Donut's deck.")]),
 
 E("Kiwi", "Pet/minion", [
-  (5, "Scarred Mongoliensis pack leader who joins Donut. Her daughter Tina. At the end of the floor she turns into a very pregnant bear."),
+  (5, "Scarred Mongoliensis pack leader who joins Donut as a minion. At the end of the floor she turns into a very pregnant bear."),
   (6, "She and Big Tina used to be bears."),
   (7, "Born an Ursine; turned into a dinosaur by Scolopendra's attack."),
- ], rel=[(5, "Donut; mother of Big Tina.")]),
+ ], rel=[(5, "Donut's minion.")]),
 
 E("Rend", "Pet", [(7, "Carl's Tummy Acher pet; saves Mongo from Gustavo.")], rel=[(7, "Pet of Carl.")]),
 
