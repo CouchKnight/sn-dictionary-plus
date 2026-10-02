@@ -2,7 +2,7 @@
 
 > **Fork of [j-raghavan/sn-dictionary](https://github.com/j-raghavan/sn-dictionary)** (MIT, forked at v1.3.7 / `d3a5d7b`).
 > Dictionary+ installs **alongside** the original plugin: it has its own plugin ID (`sndictplusbasev1`), its own name (**Dictionary+**), its own native module names (`SnDictPlus*`), and scans its own folder, **`MyStyle/SnDictPlus/`**. The original plugin never sees dictionaries you put there.
-> It is the base for spoiler-safe, series-aware glossaries (work in progress).
+> It adds spoiler-safe, series-aware glossaries: see [Series spoiler gating](#series-spoiler-gating).
 
 ![Tests](https://img.shields.io/badge/tests-1118%20passed-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-99%25%20lines%20%2F%2098%25%20branches-brightgreen)
@@ -78,6 +78,67 @@ Tap the **gear (⚙)** in the top-right of any lookup popup to open Settings. Ed
 - **Import sources** — the **Keep source files after import** toggle decides whether the files you dropped in `MyStyle/SnDictPlus/` are kept after the dictionary is built, or deleted once the import is verified (default: keep). The same choice is offered once, the first time you import.
 - **Backup** — **Export** copies the bundled `base.db`, your `user.db` (saved words + settings), and every imported dictionary to a folder you choose under `MyStyle/`. **Restore** copies those DBs back over the live ones — reopen the plugin afterwards to finish. `base.db` is included in an export but is never overwritten on restore (it ships with the plugin).
 - **Copy** — in the definition popup, the **Copy** button puts the headword plus the current tab's text (definition or thesaurus) on the device's system clipboard for pasting into other apps. Pasting into handwritten notes isn't supported — the firmware's note-element clipboard isn't exposed to plugins.
+
+## Series spoiler gating
+
+Dictionary+ can hold a book series' glossary as a stack of **layers**, one per point in the series, and show only the layer that is safe for where you are. Look up a name while reading Book 3 and you get what Books 1–3 have revealed so far, never anything from later. The project ships one such glossary: **Dungeon Crawler Carl** (Books 1–8).
+
+### Installing the DCC glossary
+
+1. Download `DCC-series.zip` from the [latest release](../../releases/latest) (or from the `DCC-series-<sha>` artifact of any CI run).
+2. Unzip it into the device's `MyStyle/` folder, so you end up with `MyStyle/SnDictPlus/dcc.series.json` and 32 `MyStyle/SnDictPlus/DCC-Book-*` folders.
+3. Open Dictionary+ once. The layers import in the background like any other dictionary.
+
+Each layer folder contains a `.refresh` marker, so unzipping a newer release over an older one re-imports the layers instead of keeping the stale copies. In **Settings → Dictionaries** the 32 layers show as a single row that moves and toggles together.
+
+### How it decides what to show
+
+- **Which book:** the open file is matched by name. Each book has match strings (`"butcher"`, `"feral gods"`, …), matched case- and punctuation-insensitively from the start of a word, so `Dungeon_Crawler_Carl_5_The_Butchers_Masquerade.epub` is Book 5. The series name only counts on an exact match, and an ambiguous file uses the lowest matching book.
+- **Where in the book:** in DOC mode (PDF/EPUB), the page you're on. Position = `(book − 1) + page / pages`.
+- **Which layer:** DCC has four quarter layers per book: *"DCC thru Book N · 25%"*, *"· 50%"*, *"· 75%"* and *"DCC thru Book N"*. The plugin shows the highest layer at or below your position, and hides every other layer of that series. Each glossary line is tagged with the book that reveals it, and, within the book, the point it is revealed. So a fact from 40% into Book 6 appears once you pass the 50% layer of Book 6, not at the start of the book.
+- **Notes:** a lasso in a handwritten note has no book position, so it uses your **furthest-read mark**, the furthest point you've reached in any book of the series.
+- **When unsure, show less:** an unreadable position counts as the start of the book. An invalid manifest hides all of its layers. If the manifest file disappears, the last good copy saved in `user.db` keeps the layers gated.
+
+The popup labels every hit from a series layer with its layer name, so you can always see how far "safe through" a definition is.
+
+### Settings: Series spoilers
+
+The **Series spoilers** card in Settings shows, per series, the layer currently showing and your furthest-read mark, and lets you pick a mode:
+
+| Mode | What you see |
+|---|---|
+| **Auto: where I'm reading** (default) | The layer for your current page; in notes, the furthest-read mark. |
+| **Auto: the furthest I've read** | Always the furthest-read mark, even in an earlier book. Handy for rereads. |
+| **Manual: choose a layer** | A layer you pick. |
+| **Off: show everything (spoilers)** | Every layer. |
+
+**Reset furthest read** clears the mark (for example, to hand the device to someone starting the series).
+
+### Adding another series
+
+Any series can be gated the same way. Put a `<name>.series.json` manifest loose in `MyStyle/SnDictPlus/` next to the layer dictionaries:
+
+```json
+{
+  "series": "My Series",
+  "books": [
+    {"n": 1, "title": "First Book", "match": ["first book"]},
+    {"n": 2, "title": "Second Book", "match": ["second book"]}
+  ],
+  "layers": [
+    {"dict": "My Series thru Book 1", "covers": 1},
+    {"dict": "My Series thru Book 2", "covers": 2}
+  ]
+}
+```
+
+`dict` is the dictionary's name, as set by its `meta.json` `name` or `.ifo` `bookname` (the DCC layers set both to the same value). `covers` is the series position the layer is safe through: `1` = end of Book 1, `1.5` = halfway through Book 2, and so on. Layers must be cumulative: each one contains everything in the layers below it.
+
+### How the DCC data is built
+
+The glossary lives in [`glossary/`](glossary/): characters, gods, races, organisations, spells, classes, items, the bestiary, floors, mechanics, timelines and family tables. Every line is written in our own words; **no book text is committed** (the extracted text and the evidence quotes stay local and are gitignored). The only per-line data that is committed is `reveal_pct.json`, the percentage through its book at which each line is revealed.
+
+`scripts/packageSeries.sh` builds all 32 layers from that committed data, checks that the committed manifest matches, and loads every layer through the plugin's own StarDict reader (`scripts/verifyLayers.mjs`). CI runs it on every push. The release workflow runs it as a gate and attaches `DCC-series.zip` next to the `.snplg`.
 
 ## Adding your own dictionary
 

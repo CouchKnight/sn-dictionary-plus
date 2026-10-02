@@ -23,12 +23,15 @@ name: Release
 #   1. Runs lint + tests as gates.
 #   2. Determines the target version.
 #   3. Bumps package.json (in-place on the runner only).
-#   4. Builds the .snplg artifact.
+#   4. Builds the .snplg artifact and the DCC-series.zip glossary
+#      package (scripts/packageSeries.sh: builds, checks and verifies
+#      the spoiler layers from committed data).
 #   5. Only after the build succeeds: commits the bump to master,
 #      creates an annotated `vX.Y.Z` tag, pushes both.
 #   6. Generates release notes (changes + contributors, excluding
 #      GitHub Copilot and the github-actions release bot itself).
-#   7. Publishes a GitHub Release with the notes and the .snplg,
+#   7. Publishes a GitHub Release with the notes, the .snplg and
+#      DCC-series.zip,
 #      respecting the `prerelease` / `make_latest` flags.
 
 on:
@@ -89,6 +92,13 @@ jobs:
         # rather not ship without confirming real upstream content
         # still renders correctly.
         run: npm run test:integration
+
+      - name: Build DCC series glossary
+        # Release gate: builds the spoiler layers from the committed data,
+        # fails on manifest drift, and loads every layer through the
+        # plugin's StarDict reader. Produces build/outputs/DCC-series.zip.
+        shell: bash
+        run: ./scripts/packageSeries.sh
 
       - name: Determine release version
         id: ver
@@ -241,6 +251,11 @@ jobs:
               echo "_No user-facing commits in this range._"
             fi
             echo ""
+            echo "## Assets"
+            echo ""
+            echo "- \`SnDictPlus.snplg\`: the plugin. Sideload it on the Supernote."
+            echo "- \`DCC-series.zip\`: the spoiler-layered Dungeon Crawler Carl glossary (32 layers + manifest). Unzip into \`MyStyle/\` so it becomes \`MyStyle/SnDictPlus/...\`. See \"Series spoiler gating\" in the README."
+            echo ""
             echo "## Contributors"
             echo ""
             if [ -n "$CONTRIBUTORS" ]; then
@@ -259,7 +274,9 @@ jobs:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: ${{ steps.ver.outputs.tag }}
           body: ${{ steps.notes.outputs.notes }}
-          files: build/outputs/SnDictPlus.snplg
+          files: |
+            build/outputs/SnDictPlus.snplg
+            build/outputs/DCC-series.zip
           # workflow_dispatch boolean inputs surface as the strings
           # "true" / "false". The action accepts a boolean for
           # `prerelease` and one of "true" / "false" / "legacy" for
