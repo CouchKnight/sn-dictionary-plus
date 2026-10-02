@@ -23,6 +23,8 @@ from chars import CHARS
 from skills import SPELLS
 from items import ITEMS
 from bestiary import BEASTS
+from floors import FLOORS
+from mechanics import MECHANICS
 
 TITLES = {1: "Dungeon Crawler Carl", 2: "Carl's Doomsday Scenario", 3: "The Dungeon Anarchist's Cookbook",
           4: "The Gate of the Feral Gods", 5: "The Butcher's Masquerade", 6: "The Eye of the Bedlam Bride",
@@ -96,7 +98,7 @@ def esc(t):
 
 def all_entries():
     seen, out = {}, []
-    for grp in (GODS, RACES, ORGS, CHARS, SPELLS, ITEMS, BEASTS):
+    for grp in (GODS, RACES, ORGS, CHARS, SPELLS, ITEMS, BEASTS, FLOORS, MECHANICS):
         for e in grp:
             k = norm(e.head)
             if k in seen:
