@@ -14,7 +14,7 @@ Dictionary+ is a fork of **[j-raghavan/sn-dictionary](https://github.com/j-ragha
 ![Lint](https://img.shields.io/badge/lint-passing-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Supernote-blue)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-2.0.1-blue)
 
 ## Why this fork exists
 

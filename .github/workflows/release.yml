@@ -2,9 +2,12 @@ name: Release
 
 # Manually-triggered release. Inputs:
 #   version     — optional. Leave blank to auto-bump the latest `v*`
-#                 tag by patch (e.g. v0.1.0 -> v0.1.1). If no tag
-#                 exists yet, the first release is v0.1.0. Or type a
-#                 specific MAJOR.MINOR.PATCH (with or without `v`).
+#                 tag by patch (e.g. v2.0.1 -> v2.0.2). If no tag
+#                 exists yet, it bumps package.json's version by patch.
+#                 Or type a specific MAJOR.MINOR.PATCH (with or without
+#                 `v`). Either way it must be newer than both the latest
+#                 tag and package.json, or the run fails: Supernote
+#                 refuses to install a lower versionCode.
 #   prerelease  — when true, publishes the GitHub Release flagged as
 #                 a pre-release (the "Pre-release" badge appears on
 #                 the release page). Useful for shipping `-rc` /
@@ -38,7 +41,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 0.1.1). Leave blank to auto-bump patch from the latest v* tag. First release is v0.1.0.'
+        description: 'Release version (e.g. 2.0.1). Leave blank to auto-bump patch from the latest v* tag (or from package.json when there is no tag). Must be newer than both.'
         required: false
         default: ''
       prerelease:
@@ -112,11 +115,18 @@ jobs:
           VERSION="${VERSION#v}"
 
           PREV_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)
+          PKG_VERSION=$(node -p "require('./package.json').version")
 
           if [ -z "$VERSION" ]; then
             if [ -z "$PREV_TAG" ]; then
-              VERSION="0.1.0"
-              echo "No existing v* tag found; starting at v$VERSION."
+              # No tag yet (e.g. a fresh fork): continue from package.json,
+              # never from a hard-coded 0.1.0. A build already installed on
+              # a device carries package.json's version, and Supernote
+              # refuses to install a lower versionCode over it.
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$PKG_VERSION"
+              PATCH=$((PATCH + 1))
+              VERSION="${MAJOR}.${MINOR}.${PATCH}"
+              echo "No existing v* tag found; continuing from package.json $PKG_VERSION -> v$VERSION."
             else
               BASE="${PREV_TAG#v}"
               IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
@@ -128,6 +138,21 @@ jobs:
 
           if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "::error::Invalid version '$VERSION'. Expected MAJOR.MINOR.PATCH."
+            exit 1
+          fi
+
+          # Supernote compares versionCode (MAJOR*10000 + MINOR*100 + PATCH,
+          # see buildPlugin.sh) and rejects an install that is not newer
+          # ("plugin version is too low"). Refuse to publish anything that
+          # isn't strictly above both the latest tag and package.json.
+          code() { local a b c; IFS='.' read -r a b c <<< "$1"; echo $(( a * 10000 + b * 100 + c )); }
+          NEW_CODE=$(code "$VERSION")
+          FLOOR="$PKG_VERSION"
+          if [ -n "$PREV_TAG" ] && [ "$(code "${PREV_TAG#v}")" -gt "$(code "$FLOOR")" ]; then
+            FLOOR="${PREV_TAG#v}"
+          fi
+          if [ "$NEW_CODE" -le "$(code "$FLOOR")" ]; then
+            echo "::error::Version $VERSION (versionCode $NEW_CODE) is not newer than $FLOOR (versionCode $(code "$FLOOR")). Devices that have $FLOOR installed would reject it as 'version too low'."
             exit 1
           fi
 
