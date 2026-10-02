@@ -1,19 +1,65 @@
 # Dictionary+ for Supernote
 
-> **Fork of [j-raghavan/sn-dictionary](https://github.com/j-raghavan/sn-dictionary)** (MIT, forked at v1.3.7 / `d3a5d7b`).
-> Dictionary+ installs **alongside** the original plugin: it has its own plugin ID (`sndictplusbasev1`), its own name (**Dictionary+**), its own native module names (`SnDictPlus*`), and scans its own folder, **`MyStyle/SnDictPlus/`**. The original plugin never sees dictionaries you put there.
-> It adds spoiler-safe, series-aware glossaries: see [Series spoiler gating](#series-spoiler-gating).
+**Spoiler-safe glossaries for long book series, read on a Supernote.**
 
-![Tests](https://img.shields.io/badge/tests-1118%20passed-brightgreen)
-![Coverage](https://img.shields.io/badge/coverage-99%25%20lines%20%2F%2098%25%20branches-brightgreen)
+Dictionary+ is a fork of **[j-raghavan/sn-dictionary](https://github.com/j-raghavan/sn-dictionary)**, the offline dictionary plugin for Supernote (MIT, forked at v1.3.7 / `d3a5d7b`). It keeps everything the original does and adds one thing: a series glossary that only ever shows you what the books have revealed **up to the page you're on**.
+
+> [!IMPORTANT]
+> **Most people want the official plugin, not this fork.** If you're after a dictionary and thesaurus for everyday reading and note-taking, install **[sn-dictionary](https://github.com/j-raghavan/sn-dictionary)**. It's the maintained, general-purpose plugin, and this fork builds on it and owes it everything.
+>
+> Dictionary+ is for a **niche use case**: reading a long book series with a glossary that has been specially prepared for it. It does nothing extra unless you install such a glossary as a custom dictionary. Today one exists, for *Dungeon Crawler Carl* (Books 1–8).
+
+![Tests](https://img.shields.io/badge/tests-1533%20passed-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-99.6%25%20lines%20%2F%2097.6%25%20branches-brightgreen)
 ![Lint](https://img.shields.io/badge/lint-passing-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Supernote-blue)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
 
-A Supernote plugin that adds offline English-word lookup to handwritten notes and PDFs. Lasso a word in your notes (handwritten or recognised) or select text in the PDF reader, tap **Lookup**, and the plugin shows the WordNet definition — multiple senses, part-of-speech, synonyms, and example sentences — in a centred popup. Everything runs on-device; no companion app, no cloud, no network calls at lookup time.
+## Why this fork exists
+
+Long series pile up names. By the later books you're meeting characters, gods, factions, spells and items the story introduced hundreds or thousands of pages ago, and it's easy to lose track. The usual fixes are a fan wiki or a search engine, and both are full of spoilers. A normal dictionary plugin doesn't help either: it has no idea which book you're reading or how far into it you are.
+
+Dictionary+ fills that gap:
+
+- **It knows where you are.** When you look something up in a book, it matches the open file to a book in the series and reads your page position.
+- **It shows only the safe layer.** A series glossary is split into **layers**, each safe through a point in the series. For *Dungeon Crawler Carl* that's four per book (25%, 50%, 75% and the end of the book), 32 in all. You only ever see the layer at or below where you are. Each glossary line is tagged with the point in the books where it is revealed.
+- **It remembers how far you've read.** Lookups in handwritten notes have no page position, so they use the furthest point you've reached. Settings let you switch to that mark, pick a layer, or turn gating off.
+- **It shows less when unsure.** Anything it can't place shows less, not more.
+
+Full details are in [Series spoiler gating](#series-spoiler-gating).
+
+### Why a fork and not a pull request
+
+- **It's niche.** Reading-position gating, series manifests and per-book layers only matter to people reading a prepared series. They'd add weight and settings to a general-purpose dictionary that almost nobody using it needs.
+- **It has to sit next to the original, not replace it.** Dictionary+ has its own plugin ID (`sndictplusbasev1`), its own name, its own native module names (`SnDictPlus*`) and its own dictionary folder (**`MyStyle/SnDictPlus/`**). You can keep the official plugin for everyday lookups and use this one for series reading; neither sees the other's dictionaries.
+- **The data is the hard part, and it's per series.** The plugin code is generic, but each series needs a hand-built data set (see below). That work belongs in a project dedicated to it.
+
+## A proof of concept, built to grow
+
+*Dungeon Crawler Carl* is the first series and the proof that the approach works. The DCC glossary has 455 entries made of about 1,150 own-words facts and relations, each tagged with its reveal point. They cover characters, gods, races and organisations, spells, classes, items, a bestiary, floors, game mechanics, per-book timelines and family trees. CI checks it on every build, and each release ships it as `DCC-series.zip`.
+
+The plugin side is **series-agnostic**: any series can be added by dropping its layer dictionaries and a small `*.series.json` manifest into `MyStyle/SnDictPlus/` ([format](#adding-another-series)). More large series are planned. Each one needs its own data set, built to the same rules:
+
+- **No book text.** Every line is written in your own words; the books and any extracted text never leave your machine and are never committed.
+- **Tagged by reveal point.** Every fact, relation and name carries the book (and, ideally, the point within the book) that first reveals it, checked against the text.
+- **Audited.** The layers are checked so that no name appears in a layer before the reader has met it.
+
+The [`glossary/`](glossary/) folder holds the DCC data and the tools used to build and audit it, and is the template for future series.
+
+## Installing
+
+1. Download the latest [release](../../releases/latest): `SnDictPlus.snplg` (the plugin) and, for DCC, `DCC-series.zip`.
+2. Sideload `SnDictPlus.snplg` (see [Installing on the device](#installing-on-the-device)). It installs **alongside** the official plugin.
+3. Unzip `DCC-series.zip` into the device's `MyStyle/` folder, so you get `MyStyle/SnDictPlus/dcc.series.json` and the `DCC-Book-*` folders. Open Dictionary+ once to import them.
+
+Without a series glossary installed, Dictionary+ behaves like the original plugin.
 
 ## Features
+
+Everything below comes from the upstream [sn-dictionary](https://github.com/j-raghavan/sn-dictionary) plugin and works the same way here (in its own `MyStyle/SnDictPlus/` folder).
+
+A Supernote plugin that adds offline English-word lookup to handwritten notes and PDFs. Lasso a word in your notes (handwritten or recognised) or select text in the PDF reader, tap **Lookup**, and the plugin shows the WordNet definition — multiple senses, part-of-speech, synonyms, and example sentences — in a centred popup. Everything runs on-device; no companion app, no cloud, no network calls at lookup time.
 
 - **Two entry gestures, one popup.** Lasso handwritten or already-recognised text on a note page → tap **Lookup** in the lasso toolbar; or select text in the PDF reader → tap **Lookup** in the selection toolbar. Both flows feed the same on-device dictionary and render in the same structured popup.
 - **Real WordNet content + thesaurus.** 149,535 Princeton WordNet 2.x definitions (BSD-style license) plus an English synonym/antonym thesaurus from Open English WordNet 2023 (CC BY 4.0) and the Moby Thesaurus (public domain), built into a single prebuilt SQLite `base.db` that ships inside the `.snplg` and is opened on-device by the native SQLite engine. No network at runtime; lookup is one indexed `SELECT` (no per-reload parse).
@@ -23,7 +69,7 @@ A Supernote plugin that adds offline English-word lookup to handwritten notes an
 - **Case- and whitespace-insensitive.** "Anatomy", "anatomy", and "  ANATOMY  " all hit the same entry.
 - **Bring-your-own dictionary** *(shipped)* — drop a **StarDict** folder or a **CSV** file into `MyStyle/SnDictPlus/` and the plugin imports it into its own SQLite DB at startup (native, off-thread; **source files are kept by default** — a Settings toggle / first-run prompt lets you opt in to deleting them after a verified import). User dictionaries precede the base on lookup, so your terms shadow generic ones, and a `meta.json` sidecar can name the dict, set its language, and (for CSV) map columns including an optional phonetic field. A separate prebuilt custom `.snplg` via an in-browser converter (Prong B) may still come later.
 
-## Demo
+## Demo (upstream sn-dictionary)
 
 ### v1.0.1
 
@@ -445,6 +491,7 @@ buildPlugin.ps1                  build (Windows): same pipeline as buildPlugin.s
 
 ## Acknowledgements
 
+- **[Jayasimha Raghavan](https://github.com/j-raghavan)** and the **[sn-dictionary](https://github.com/j-raghavan/sn-dictionary)** contributors — the plugin this fork is built on: the lookup pipeline, the native SQLite engine, the popup, bring-your-own dictionaries and settings. Dictionary+ only adds the series layer on top.
 - **Dunn-sn** (Supernote SDK engineer) — direct DM responses on plugin SDK questions: confirmed the DOC text-selection model (`getLastSelectedText`), the `EventType.PEN_UP` listener's behaviour, the deprecation of `NativePluginManager.showPluginView()`, and that `.snplg` packaging auto-includes everything in `build/generated/`. The reader and handler design are downstream of those answers.
 - **`OkReward5192`** (r/Supernote_dev) — community thread on dictionary plugins, including the empirical observation that the SDK only supports lasso / text-selection entry gestures (no tap-on-word).
 - **Princeton WordNet** (BSD-style license) — the bundled English definitions. Distribution via the dict.org community mirror.
