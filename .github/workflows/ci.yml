@@ -31,6 +31,30 @@ jobs:
       - run: npm ci
       - run: npx jest --coverage
 
+  # Builds the spoiler-layered DCC glossary from the committed data
+  # (glossary/*.py + reveal_pct.json; the book text is never needed),
+  # checks the committed manifest has not drifted, verifies every layer
+  # loads through the plugin's StarDict reader, and uploads the same
+  # DCC-series.zip the release attaches.
+  series:
+    name: Series glossary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build, verify and package layers
+        shell: bash
+        run: ./scripts/packageSeries.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DCC-series-${{ github.sha }}
+          path: build/outputs/DCC-series.zip
+          retention-days: 30
+
   # buildPlugin.{sh,ps1} internally call `npm run prepare:dict` which
   # fetches the WordNet StarDict from the dict.org mirror (~10MB), verifies
   # its pinned SHA-256, and emits src/core/dict/data/baseDictData.ts before
