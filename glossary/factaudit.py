@@ -1,13 +1,13 @@
 import re,glob,sys
 sys.path.insert(0,'.')
-from gods import GODS; from races import RACES; from orgs import ORGS; from chars import CHARS; from skills import SPELLS, CLASSES; from items import ITEMS; from bestiary import BEASTS; from floors import FLOORS; from mechanics import MECHANICS
+from gods import GODS; from races import RACES; from orgs import ORGS; from chars import CHARS; from skills import SPELLS, CLASSES; from items import ITEMS; from bestiary import BEASTS; from floors import FLOORS; from mechanics import MECHANICS; from timeline import TIMELINE, FAMILIES
 books=[open(f,encoding='utf-8').read().replace('’',"'") for f in sorted(glob.glob('txt/*.txt'))]
 paras=[[p for p in b.split('\n\n')] for b in books]
 lower=set(w.lower() for b in books for w in re.findall(r"[a-z][a-z']+",b))
 def rx(t): return re.compile(r"(?<![A-Za-z])"+re.escape(t.replace('’',"'"))+r"(?![A-Za-z])")
 MAXB=int(sys.argv[1]) if len(sys.argv)>1 else 5
 flags=0
-for e in GODS+RACES+ORGS+CHARS+SPELLS+ITEMS+BEASTS+FLOORS+MECHANICS+CLASSES:
+for e in GODS+RACES+ORGS+CHARS+SPELLS+ITEMS+BEASTS+FLOORS+MECHANICS+CLASSES+TIMELINE+FAMILIES:
     names=[e.head]+[a for al in e.aliases.values() for a in al]
     # short forms: first word of head if distinctive
     names+= [w for w in e.head.split() if len(w)>3 and w.lower() not in lower]
